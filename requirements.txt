@@ -1,0 +1,33 @@
+# IsoWorks pyLIMS — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# GUI
+PyQt5>=5.15
+
+# Database
+SQLAlchemy>=2.0
+psycopg2-binary          # PostgreSQL driver
+pyodbc                   # SQL Server / Access driver (optional, Windows)
+
+# Data & numerics
+numpy
+pandas
+scipy
+scikit-learn
+
+# Plotting
+matplotlib
+plotly
+
+# Templating / reporting
+jinja2
+
+# Markdown → HTML (in-app help browser)
+markdown
+
+# Label printing (optional)
+# dymo-connect or system DYMO SDK — not a PyPI package; see dymo_utils.py
+
+# Dev / optional
+# openpyxl                 # required by pandas read_excel for .xlsx
+# xlrd                     # required by pandas read_excel for legacy .xls
