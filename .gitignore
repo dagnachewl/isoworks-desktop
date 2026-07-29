@@ -69,3 +69,4 @@ backend/app/si_imports/
 backend/app/temp_runs/
 backend/temp_runs/
 cache/
+isoworks-core/

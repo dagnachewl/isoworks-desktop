@@ -1,6 +1,0 @@
-sqlalchemy>=2.0
-numpy
-pandas
-scipy
-scikit-learn
-openpyxl
