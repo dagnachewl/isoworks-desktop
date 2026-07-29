@@ -1,7 +1,7 @@
 """
-ams_graphitisation_run_list_gui.py — Graphitisation batch list for IsoWorks AMS.
-Provides GraphitisationRunListWindow (QWidget) for browsing, creating and
-opening graphitisation preparation batches.
+ams_physical_prep_run_list_gui.py — Physical Prep batch list for IsoWorks AMS.
+Provides PhysicalPrepRunListWindow (QWidget) for browsing, creating and
+opening physical prep batches.
 """
 from __future__ import annotations
 import logging
@@ -27,14 +27,14 @@ from gui_utils import EmbeddedSearchBox, show_message
 from help_browser import make_help_button
 
 try:
-    from ams_graphitisation_run_details_gui import GraphitisationRunDetailsWindow
+    from ams_physical_prep_run_details_gui import PhysicalPrepRunDetailsWindow
 except ImportError:
-    GraphitisationRunDetailsWindow = None
+    PhysicalPrepRunDetailsWindow = None
 
 try:
-    from ams_graphitisation_create_run_gui import GraphitisationCreateRunDialog
+    from ams_physical_prep_create_run_gui import PhysicalPrepCreateRunDialog
 except ImportError:
-    GraphitisationCreateRunDialog = None
+    PhysicalPrepCreateRunDialog = None
 
 log = logging.getLogger(__name__)
 
@@ -55,16 +55,6 @@ QTableView::item:selected { background: #DDEEFF; color: #000; }
 QHeaderView::section { background: white; color: #7F8BB5; font-weight: bold;
     padding: 6px 8px; border: none; border-bottom: 2px solid #7F8BB5; }
 QHeaderView::section:hover { background: #DDEEFF; color: #000; }
-"""
-
-_FORM_STYLE = """
-QGroupBox { font-weight:bold; font-size:12px; border:1px solid #C8D0DC;
-    border-radius:6px; margin-top:8px; padding:8px 10px; }
-QGroupBox::title { subcontrol-origin:margin; left:10px; padding:0 4px; color:#2D4A8A; }
-QLineEdit, QComboBox, QTextEdit, QDateEdit {
-    background:#fff; border:1px solid #D0D0DD;
-    border-radius:6px; padding:4px 6px; font-size:12.5px; }
-QLineEdit:focus, QComboBox:focus, QDateEdit:focus { border:1px solid #4C82FF; }
 """
 
 
@@ -88,122 +78,10 @@ class _StatusDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-# ── New-batch dialog ───────────────────────────────────────────────────────────
-
-class _NewGraphBatchDialog(QDialog):
-    """Collects header fields for a new graphitisation batch."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("New Graphitisation Batch")
-        self.setModal(True)
-        self.setMinimumWidth(440)
-        self.setStyleSheet(_FORM_STYLE)
-        self.new_batch_id: int | None = None
-
-        form = QFormLayout()
-
-        self.txtCode = QLineEdit()
-        self.txtCode.setPlaceholderText("e.g. GR260115A")
-        form.addRow("Batch Code *", self.txtCode)
-
-        self.dateBatch = QDateEdit(QDate.currentDate())
-        self.dateBatch.setCalendarPopup(True)
-        self.dateBatch.setDisplayFormat("yyyy-MM-dd")
-        form.addRow("Batch Date", self.dateBatch)
-
-        self.cmbEquip = QComboBox()
-        form.addRow("Equipment", self.cmbEquip)
-
-        self.cmbTech = QComboBox()
-        form.addRow("Technician", self.cmbTech)
-
-        self.txtNotes = QTextEdit()
-        self.txtNotes.setMaximumHeight(70)
-        form.addRow("Notes", self.txtNotes)
-
-        grp = QGroupBox("Batch Details")
-        grp.setLayout(form)
-
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        btns.accepted.connect(self._save)
-        btns.rejected.connect(self.reject)
-
-        lay = QVBoxLayout(self)
-        lay.addWidget(grp)
-        lay.addWidget(btns)
-
-        self._load_lookups()
-
-    def _load_lookups(self):
-        try:
-            with db_manager.get_connection() as conn:
-                equip = conn.execute(text(
-                    "SELECT EquipmentID, EquipmentName FROM Equipment ORDER BY EquipmentName"
-                )).fetchall()
-                emps = conn.execute(text(
-                    "SELECT EmployeeID, LastName, FirstMiddleName "
-                    "FROM Employee WHERE IsActive = 1 ORDER BY LastName"
-                )).fetchall()
-        except Exception as exc:
-            log.error("NewGraphBatchDialog lookups: %s", exc)
-            return
-
-        self.cmbEquip.addItem("— Select —", None)
-        for r in equip:
-            self.cmbEquip.addItem(r[1], r[0])
-
-        self.cmbTech.addItem("— Select —", None)
-        for r in emps:
-            name = f"{r[1]}, {r[2]}" if r[2] else r[1]
-            self.cmbTech.addItem(name, r[0])
-
-    def _save(self):
-        code = self.txtCode.text().strip()
-        if not code:
-            show_message(self, "Validation", "Batch Code is required.")
-            return
-
-        equip_id = self.cmbEquip.currentData()
-        tech_id  = self.cmbTech.currentData()
-        batch_dt = self.dateBatch.date().toPyDate()
-        notes    = self.txtNotes.toPlainText().strip() or None
-        user     = normalize_login_name(get_current_user_id())
-        now      = datetime.now()
-
-        try:
-            with db_manager.get_connection() as conn:
-                row = conn.execute(text("""
-                    INSERT INTO ams.graphrun
-                        (batchcode, batchdate, equipmentid, technicianid,
-                         notes, runstatus, islocked,
-                         createdatestamp, createuserstamp)
-                    VALUES
-                        (:code, :dt, :eid, :tid,
-                         :notes, 0, FALSE,
-                         :now, :user)
-                    RETURNING graphrunid
-                """), {
-                    "code": code, "dt": batch_dt,
-                    "eid":  equip_id, "tid": tech_id,
-                    "notes": notes, "now": now, "user": user,
-                }).fetchone()
-                conn.commit()
-            self.new_batch_id = row[0]
-            self.accept()
-        except Exception as exc:
-            log.error("NewGraphBatchDialog save: %s", exc)
-            if "uq_graphrun_batchcode" in str(exc).lower():
-                show_message(self, "Duplicate Code",
-                             f"Batch code '{code}' already exists.")
-            else:
-                show_message(self, "Error", str(exc), QMessageBox.Critical)
-
-
 # ── Main list window ───────────────────────────────────────────────────────────
 
-class GraphitisationRunListWindow(QWidget):
-    """Browse, create and open graphitisation preparation batches."""
+class PhysicalPrepRunListWindow(QWidget):
+    """Browse, create and open physical prep batches."""
 
     _HEADERS = [
         "Status", "Batch ID", "Batch Code", "Date",
@@ -260,7 +138,7 @@ class GraphitisationRunListWindow(QWidget):
             self.has_write_priv = check_employee_privilege(u, "accessams")
             self.has_admin_priv = check_employee_privilege(u, "amsadmin")
         except Exception as exc:
-            log.error("Graphitisation privilege check: %s", exc)
+            log.error("Physical Prep privilege check: %s", exc)
 
     def _update_ui_state(self):
         self.btnCreate.setEnabled(self.has_write_priv)
@@ -293,12 +171,12 @@ class GraphitisationRunListWindow(QWidget):
         btnClose.clicked.connect(self._close_module)
 
         for w in [self.btnCreate, self.btnDelete, btnClose,
-                  make_help_button(self, "graphitisation_run_list")]:
+                  make_help_button(self, "physicalprep_run_list")]:
             bar.addWidget(w)
         return bar
 
     def _build_filter_group(self) -> QGroupBox:
-        grp = QGroupBox("Filter / Search Graphitisation Batches")
+        grp = QGroupBox("Filter / Search Physical Prep Batches")
         vlay = QVBoxLayout(grp)
 
         top = QGridLayout()
@@ -342,14 +220,14 @@ class GraphitisationRunListWindow(QWidget):
                 rows = conn.execute(text("""
                     SELECT DISTINCT e.EquipmentID, e.EquipmentName
                     FROM Equipment e
-                    INNER JOIN ams.graphrun r ON r.equipmentid = e.EquipmentID
+                    INNER JOIN ams.physicalprep_run r ON r.equipmentid = e.EquipmentID
                     ORDER BY e.EquipmentName
                 """)).fetchall()
             self.cmbEquipFilter.addItem("— All Equipment —", None)
             for r in rows:
                 self.cmbEquipFilter.addItem(r[1], r[0])
         except Exception as exc:
-            log.warning("Graphitisation filter combos: %s", exc)
+            log.warning("Physical Prep filter combos: %s", exc)
             self.cmbEquipFilter.addItem("— All Equipment —", None)
 
     def load_run_list(self):
@@ -371,16 +249,16 @@ class GraphitisationRunListWindow(QWidget):
         if sval:
             try:
                 if stype == "Batch ID":
-                    clauses.append("r.graphrunid = :bid")
+                    clauses.append("r.physicalpreprunid = :bid")
                     params["bid"] = int(sval)
                 elif stype == "Batch Code":
                     clauses.append("r.batchcode ILIKE :code")
                     params["code"] = f"%{sval}%"
                 elif stype == "Analysis ID":
                     clauses.append("""
-                        r.graphrunid IN (
-                            SELECT gs.graphrunid FROM ams.graphsample gs
-                            WHERE gs.analysisid = :aid
+                        r.physicalpreprunid IN (
+                            SELECT ps.physicalpreprunid FROM ams.physicalprep_sample ps
+                            WHERE ps.analysisid = :aid
                         )
                     """)
                     params["aid"] = int(sval)
@@ -391,35 +269,35 @@ class GraphitisationRunListWindow(QWidget):
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
 
         sql = f"""
-            SELECT r.graphrunid, r.batchcode, r.batchdate,
+            SELECT r.physicalpreprunid, r.batchcode, r.batchdate,
                    e.EquipmentName,
                    {db_manager.sql_concat('emp.LastName', "', '", 'emp.FirstMiddleName')} AS technician,
                    r.runstatus, r.notes,
-                   COUNT(gs.graphsampleid)                           AS nsamples,
-                   COUNT(gs.graphsampleid) FILTER (WHERE gs.isaccepted) AS naccepted
-            FROM ams.graphrun r
+                   COUNT(ps.physicalprepsampleid)                           AS nsamples,
+                   COUNT(ps.physicalprepsampleid) FILTER (WHERE ps.isaccepted) AS naccepted
+            FROM ams.physicalprep_run r
             LEFT JOIN Equipment  e   ON e.EquipmentID  = r.equipmentid
             LEFT JOIN Employee   emp ON emp.EmployeeID = r.technicianid
-            LEFT JOIN ams.graphsample gs ON gs.graphrunid = r.graphrunid
+            LEFT JOIN ams.physicalprep_sample ps ON ps.physicalpreprunid = r.physicalpreprunid
             {where}
-            GROUP BY r.graphrunid, r.batchcode, r.batchdate,
+            GROUP BY r.physicalpreprunid, r.batchcode, r.batchdate,
                      e.EquipmentName, emp.LastName, emp.FirstMiddleName,
                      r.runstatus, r.notes
-            ORDER BY r.graphrunid DESC
+            ORDER BY r.physicalpreprunid DESC
         """
 
         try:
             with db_manager.get_connection() as conn:
                 rows = conn.execute(text(sql), params).fetchall()
         except Exception as exc:
-            log.error("Graphitisation load_run_list: %s", exc)
+            log.error("Physical Prep load_run_list: %s", exc)
             return
 
         self._model.clear()
         self._model.setHorizontalHeaderLabels(self._HEADERS)
 
         for row in rows:
-            status_code = int(row[6]) if row[6] is not None else 0
+            status_code = int(row[5]) if row[5] is not None else 0
             status_item = QStandardItem(_STATUS_LABELS.get(status_code, "?"))
             status_item.setData(status_code, Qt.UserRole + 1)
 
@@ -435,7 +313,7 @@ class GraphitisationRunListWindow(QWidget):
                 QStandardItem(row[4] or ""),
                 QStandardItem(str(row[7])),
                 QStandardItem(str(row[8])),
-                QStandardItem(row[5] or ""),   # notes
+                QStandardItem(row[6] or ""),   # notes
             ])
 
         h = self._table.horizontalHeader()
@@ -498,18 +376,18 @@ class GraphitisationRunListWindow(QWidget):
     # ── Actions ────────────────────────────────────────────────────────────────
 
     def _create_batch(self):
-        if GraphitisationCreateRunDialog is None:
-            show_message(self, "Missing", "ams_graphitisation_create_run_gui not found.")
+        if PhysicalPrepCreateRunDialog is None:
+            show_message(self, "Missing", "ams_physical_prep_create_run_gui not found.")
             return
-        dlg = GraphitisationCreateRunDialog(self)
+        dlg = PhysicalPrepCreateRunDialog(self)
         if dlg.exec_() == QDialog.Accepted and dlg.new_batch_id:
             self.load_run_list()
             self._open_batch_details(dlg.new_batch_id)
 
     def _open_batch_details(self, batch_id: int):
-        if GraphitisationRunDetailsWindow is None:
+        if PhysicalPrepRunDetailsWindow is None:
             show_message(self, "Missing",
-                         "ams_graphitisation_run_details_gui not found.")
+                         "ams_physical_prep_run_details_gui not found.")
             return
         if self._details_window:
             try:
@@ -517,7 +395,7 @@ class GraphitisationRunListWindow(QWidget):
             except Exception as e:
 
                 logging.warning(f"Exception caught: {e}")
-        win = GraphitisationRunDetailsWindow(batch_id=batch_id, parent=self)
+        win = PhysicalPrepRunDetailsWindow(batch_id=batch_id, parent=self)
         self._details_window = win
         win.finished.connect(self._on_details_closed)
         win.show()
@@ -531,7 +409,7 @@ class GraphitisationRunListWindow(QWidget):
             return
         if QMessageBox.question(
             self, "Confirm Delete",
-            f"Permanently delete Graphitisation Batch {bid} and all its samples?\n"
+            f"Permanently delete Physical Prep Batch {bid} and all its samples?\n"
             "This cannot be undone.",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
         ) == QMessageBox.No:
@@ -539,15 +417,15 @@ class GraphitisationRunListWindow(QWidget):
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text(
-                    "DELETE FROM ams.graphsample WHERE graphrunid = :bid"
+                    "DELETE FROM ams.physicalprep_sample WHERE physicalpreprunid = :bid"
                 ), {"bid": bid})
                 conn.execute(text(
-                    "DELETE FROM ams.graphrun WHERE graphrunid = :bid"
+                    "DELETE FROM ams.physicalprep_run WHERE physicalpreprunid = :bid"
                 ), {"bid": bid})
                 conn.commit()
             self.load_run_list()
         except Exception as exc:
-            log.error("Delete graphrun %d: %s", bid, exc)
+            log.error("Delete physicalprep_run %d: %s", bid, exc)
             show_message(self, "Error", str(exc), QMessageBox.Critical)
 
     def _close_module(self):

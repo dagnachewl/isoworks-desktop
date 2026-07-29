@@ -157,6 +157,27 @@ def load_graphitisation():
     except ImportError:
         return ComingSoonWidget("Graphitisation", "Module not found.")
 
+def load_physical_prep():
+    try:
+        from ams_physical_prep_run_list_gui import PhysicalPrepRunListWindow
+        return PhysicalPrepRunListWindow()
+    except ImportError:
+        return ComingSoonWidget("Physical Prep", "Module not found.")
+
+def load_pretreatment():
+    try:
+        from ams_pretreatment_run_list_gui import PretreatmentRunListWindow
+        return PretreatmentRunListWindow()
+    except ImportError:
+        return ComingSoonWidget("Pretreatment", "Module not found.")
+
+def load_purification():
+    try:
+        from ams_purification_run_list_gui import PurificationRunListWindow
+        return PurificationRunListWindow()
+    except ImportError:
+        return ComingSoonWidget("Purification", "Module not found.")
+
 # --- Management Module Loaders ---
 def load_employee_mgmt():
     from employee_management_gui import EmployeeModuleWidget
@@ -799,6 +820,27 @@ class AppShell(QMainWindow):
                 icon=IconCache.get_icon("radioactive", color=ICON_COLORS["ams"]),
                 description="Accelerator Mass Spectrometry — ¹⁴C measurement, data import and reduction.",
                 children=[
+                    ModuleSpec(
+                        key="ams_physical_prep",
+                        title="Physical Prep",
+                        icon=IconCache.get_icon("batch", color=ICON_COLORS["ams"]),
+                        description="Mechanical sample preparation (cleaning, sieving, crushing) before pretreatment.",
+                        make_embedded_widget=load_physical_prep
+                    ),
+                    ModuleSpec(
+                        key="ams_pretreatment",
+                        title="Pretreatment",
+                        icon=IconCache.get_icon("chemistry", color=ICON_COLORS["ams"]),
+                        description="Chemical pretreatment (ABA and other methods) to remove contaminants before purification.",
+                        make_embedded_widget=load_pretreatment
+                    ),
+                    ModuleSpec(
+                        key="ams_purification",
+                        title="Purification",
+                        icon=IconCache.get_icon("stock_convert", color=ICON_COLORS["ams"]),
+                        description="CO₂ purification before graphitisation.",
+                        make_embedded_widget=load_purification
+                    ),
                     ModuleSpec(
                         key="ams_graphitisation",
                         title="Graphitisation",

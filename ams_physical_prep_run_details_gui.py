@@ -1,8 +1,7 @@
 """
-ams_graphitisation_run_details_gui.py — Graphitisation batch detail view.
-Provides GraphitisationRunDetailsWindow (QDialog) for entering and editing
-per-sample graphitisation data (combustion masses, reaction parameters,
-graphite yield and QA acceptance).
+ams_physical_prep_run_details_gui.py — Physical Prep batch detail view.
+Provides PhysicalPrepRunDetailsWindow (QDialog) for entering and editing
+per-sample physical preparation data (prep method, pre/post mass, QA acceptance).
 """
 from __future__ import annotations
 import logging
@@ -34,7 +33,7 @@ log = logging.getLogger(__name__)
 
 _STATUS_LABELS = {0: "Pending", 1: "In Progress", 2: "Complete", 3: "Failed"}
 _BATCH_STATUS  = {0: "Open", 1: "Complete", 2: "Approved", 3: "Locked"}
-_CATALYSTS     = ["Fe", "Co", "Ni"]
+_PREP_METHODS  = ["none", "cleaned", "sieved", "crushed", "rotary_tool", "ultrasonic"]
 
 _HEADER_STYLE = """
 QGroupBox { background:#FAFAFC; border:1px solid #D9D9E3; border-radius:8px;
@@ -61,32 +60,25 @@ QHeaderView::section { background:#f0f0f0; font-weight:bold;
 # ── Column index constants ────────────────────────────────────────────────────
 
 class C:
-    POS    =  0   # batchposition
-    AID    =  1   # analysisid  (read-only)
-    SAMPLE =  2   # prefix-sampleid name (read-only)
-    SMASS  =  3   # samplemass_mg
-    FILL   =  4   # fillpressure_mbar
-    CAT    =  5   # catalysttype
-    TEMP   =  6   # reactortemp_c
-    DUR    =  7   # reductionduration_h
-    FINAL  =  8   # finalpressure_mbar
-    GMASS  =  9   # graphitemass_mg
-    YIELD  = 10   # carbonyield_pct (auto-computed)
-    ACCEPT = 11   # isaccepted (checkbox)
-    STATUS = 12   # status (read-only)
-    REJECT = 13   # rejectreason
-    NOTES  = 14   # notes
+    POS      = 0   # batchposition
+    AID      = 1   # analysisid  (read-only)
+    SAMPLE   = 2   # prefix-sampleid name (read-only)
+    METHOD   = 3   # prep_method
+    PREMASS  = 4   # pre_mass_mg
+    POSTMASS = 5   # post_mass_mg
+    ACCEPT   = 6   # isaccepted (checkbox)
+    STATUS   = 7   # status (read-only)
+    REJECT   = 8   # rejectreason
+    NOTES    = 9   # notes
 
     HEADERS = [
         "Pos", "AnalysisID", "Sample",
-        "Sample\nMass (mg)", "Fill Press.\n(mbar)",
-        "Catalyst", "Temp\n(°C)", "Duration\n(h)", "Final Press.\n(mbar)",
-        "Graphite\nMass (mg)", "Yield\n(%)",
+        "Prep Method", "Pre Mass\n(mg)", "Post Mass\n(mg)",
         "Accepted?", "Status", "Reject Reason", "Notes",
     ]
 
-    READ_ONLY = {AID, SAMPLE, YIELD, STATUS}
-    NUMERIC   = {SMASS, FILL, TEMP, DUR, FINAL, GMASS}
+    READ_ONLY = {AID, SAMPLE, STATUS}
+    NUMERIC   = {PREMASS, POSTMASS}
 
 
 # ── Delegates ─────────────────────────────────────────────────────────────────
@@ -125,8 +117,8 @@ class _NumDelegate(QStyledItemDelegate):
         return super().eventFilter(editor, event)
 
 
-class _CatDelegate(QStyledItemDelegate):
-    """Inline catalyst-type combo (Fe / Co / Ni)."""
+class _MethodDelegate(QStyledItemDelegate):
+    """Inline prep-method combo (none / cleaned / sieved / crushed / rotary_tool / ultrasonic)."""
 
     def __init__(self, parent=None, active: bool = True):
         super().__init__(parent)
@@ -136,11 +128,11 @@ class _CatDelegate(QStyledItemDelegate):
         if not self.active:
             return None
         cmb = QComboBox(parent)
-        cmb.addItems(_CATALYSTS)
+        cmb.addItems(_PREP_METHODS)
         return cmb
 
     def setEditorData(self, editor, index):
-        val = index.data(Qt.EditRole) or "Fe"
+        val = index.data(Qt.EditRole) or "none"
         idx = editor.findText(val)
         editor.setCurrentIndex(idx if idx >= 0 else 0)
 
@@ -263,10 +255,10 @@ class _AddSamplesDialog(QDialog):
 
 # ── Main details window ───────────────────────────────────────────────────────
 
-class GraphitisationRunDetailsWindow(QDialog):
+class PhysicalPrepRunDetailsWindow(QDialog):
     """
-    Master-detail dialog for one graphitisation batch.
-    Header = batch metadata;  Table = per-sample reaction data.
+    Master-detail dialog for one physical prep batch.
+    Header = batch metadata;  Table = per-sample prep data.
     """
 
     def __init__(self, batch_id: int, parent=None):
@@ -277,14 +269,14 @@ class GraphitisationRunDetailsWindow(QDialog):
         self.has_write   = False
         self._is_locked  = False
         self._updating   = False
-        self._gsid_map: dict[int, int] = {}   # row → graphsampleid PK
+        self._psid_map: dict[int, int] = {}   # row → physicalprepsampleid PK
 
-        self.setWindowTitle(f"Graphitisation Batch :: {batch_id}")
+        self.setWindowTitle(f"Physical Prep Batch :: {batch_id}")
         self.resize(1500, 800)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
 
-        self._num_delegate = _NumDelegate(None, decimals=3, active_cols=C.NUMERIC)
-        self._cat_delegate = _CatDelegate()
+        self._num_delegate    = _NumDelegate(None, decimals=3, active_cols=C.NUMERIC)
+        self._method_delegate = _MethodDelegate()
 
         self._build_ui()
 
@@ -295,7 +287,7 @@ class GraphitisationRunDetailsWindow(QDialog):
             self._load_detail()
             self._apply_read_only()
         except Exception as exc:
-            log.error("GraphitisationRunDetailsWindow init: %s", exc, exc_info=True)
+            log.error("PhysicalPrepRunDetailsWindow init: %s", exc, exc_info=True)
             set_status(self._status_lbl, f"Error: {exc}", "error")
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -346,7 +338,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setStyleSheet(_TABLE_STYLE)
-        self._table.setItemDelegateForColumn(C.CAT,  self._cat_delegate)
+        self._table.setItemDelegateForColumn(C.METHOD, self._method_delegate)
         for col in C.NUMERIC:
             self._table.setItemDelegateForColumn(col, self._num_delegate)
         root.addWidget(self._table, 1)
@@ -425,10 +417,10 @@ class GraphitisationRunDetailsWindow(QDialog):
     def _load_header(self):
         with db_manager.get_connection() as conn:
             row = conn.execute(text("""
-                SELECT graphrunid, batchcode, batchdate,
+                SELECT physicalpreprunid, batchcode, batchdate,
                        equipmentid, technicianid, runstatus, islocked, notes
-                FROM ams.graphrun
-                WHERE graphrunid = :bid
+                FROM ams.physicalprep_run
+                WHERE physicalpreprunid = :bid
             """), {"bid": self.batch_id}).fetchone()
 
         if not row:
@@ -458,41 +450,35 @@ class GraphitisationRunDetailsWindow(QDialog):
     def _load_detail(self):
         with db_manager.get_connection() as conn:
             rows = conn.execute(text("""
-                SELECT gs.graphsampleid,
-                       gs.batchposition,
-                       gs.analysisid,
+                SELECT ps.physicalprepsampleid,
+                       ps.batchposition,
+                       ps.analysisid,
                        a.prefix || '-' || CAST(a.sampleid AS TEXT) AS sampleref,
                        s.sname,
-                       gs.samplemass_mg,
-                       gs.fillpressure_mbar,
-                       gs.catalysttype,
-                       gs.reactortemp_c,
-                       gs.reductionduration_h,
-                       gs.finalpressure_mbar,
-                       gs.graphitemass_mg,
-                       gs.carbonyield_pct,
-                       gs.isaccepted,
-                       gs.status,
-                       gs.rejectreason,
-                       gs.notes
-                FROM ams.graphsample gs
-                JOIN public.analysis a ON a.analysisid = gs.analysisid
+                       ps.prep_method,
+                       ps.pre_mass_mg,
+                       ps.post_mass_mg,
+                       ps.isaccepted,
+                       ps.status,
+                       ps.rejectreason,
+                       ps.notes
+                FROM ams.physicalprep_sample ps
+                JOIN public.analysis a ON a.analysisid = ps.analysisid
                 JOIN public.sample   s ON s.sampleid   = a.sampleid AND s.prefix = a.prefix
-                WHERE gs.graphrunid = :bid
-                ORDER BY gs.batchposition, gs.graphsampleid
+                WHERE ps.physicalpreprunid = :bid
+                ORDER BY ps.batchposition, ps.physicalprepsampleid
             """), {"bid": self.batch_id}).fetchall()
 
         self._updating = True
         try:
             self._model.clear()
             self._model.setHorizontalHeaderLabels(C.HEADERS)
-            self._gsid_map.clear()
+            self._psid_map.clear()
             ro_brush = QBrush(QColor("#f5f5f5"))
 
             for r in rows:
-                (gsid, pos, aid, sref, sname,
-                 smass, fill, cat, temp, dur, final,
-                 gmass, yld, accepted, status, reject, notes) = r
+                (psid, pos, aid, sref, sname,
+                 method, premass, postmass, accepted, status, reject, notes) = r
 
                 sample_label = f"{sref}  {sname or ''}".strip()
                 status_code  = int(status) if status is not None else 0
@@ -501,14 +487,9 @@ class GraphitisationRunDetailsWindow(QDialog):
                     QStandardItem(str(pos) if pos is not None else ""),   # C.POS
                     QStandardItem(str(aid)),                               # C.AID
                     QStandardItem(sample_label),                           # C.SAMPLE
-                    QStandardItem(self._fmt(smass)),                       # C.SMASS
-                    QStandardItem(self._fmt(fill)),                        # C.FILL
-                    QStandardItem(cat or "Fe"),                            # C.CAT
-                    QStandardItem(self._fmt(temp, 0)),                     # C.TEMP
-                    QStandardItem(self._fmt(dur)),                         # C.DUR
-                    QStandardItem(self._fmt(final)),                       # C.FINAL
-                    QStandardItem(self._fmt(gmass)),                       # C.GMASS
-                    QStandardItem(self._fmt(yld, 1)),                      # C.YIELD
+                    QStandardItem(method or "none"),                       # C.METHOD
+                    QStandardItem(self._fmt(premass)),                     # C.PREMASS
+                    QStandardItem(self._fmt(postmass)),                    # C.POSTMASS
                     QStandardItem(""),                                     # C.ACCEPT (checkbox)
                     QStandardItem(_STATUS_LABELS.get(status_code, "?")),   # C.STATUS
                     QStandardItem(reject or ""),                           # C.REJECT
@@ -536,7 +517,7 @@ class GraphitisationRunDetailsWindow(QDialog):
 
                 row_idx = self._model.rowCount()
                 self._model.appendRow(items)
-                self._gsid_map[row_idx] = gsid
+                self._psid_map[row_idx] = psid
 
             self._table.resizeColumnsToContents()
             h = self._table.horizontalHeader()
@@ -554,7 +535,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         if not self.has_write:
             self.btnEdit.setChecked(False)
             show_message(self, "Access Denied",
-                         "You do not have write access to Graphitisation.", QMessageBox.Warning)
+                         "You do not have write access to AMS.", QMessageBox.Warning)
             return
         if self._is_locked:
             self.btnEdit.setChecked(False)
@@ -633,9 +614,6 @@ class GraphitisationRunDetailsWindow(QDialog):
         self._updating = True
         try:
             row, col = item.row(), item.column()
-            # Recalculate yield whenever masses change
-            if col in (C.SMASS, C.GMASS):
-                self._recalc_yield(row)
             # Auto-update sample status
             self._recalc_status(row)
             # Persist
@@ -643,23 +621,13 @@ class GraphitisationRunDetailsWindow(QDialog):
         finally:
             self._updating = False
 
-    def _recalc_yield(self, row: int):
-        smass = self._float(self._model.item(row, C.SMASS))
-        gmass = self._float(self._model.item(row, C.GMASS))
-        if smass and gmass and smass > 0:
-            yld = (gmass / smass) * 100.0
-            self._model.item(row, C.YIELD).setText(f"{yld:.1f}")
-        else:
-            self._model.item(row, C.YIELD).setText("")
-
     def _recalc_status(self, row: int):
-        gmass = self._float(self._model.item(row, C.GMASS))
-        smass = self._float(self._model.item(row, C.SMASS))
-        fill  = self._float(self._model.item(row, C.FILL))
+        premass  = self._float(self._model.item(row, C.PREMASS))
+        postmass = self._float(self._model.item(row, C.POSTMASS))
 
-        if gmass is not None:
+        if postmass is not None:
             code = 2   # complete
-        elif smass is not None or fill is not None:
+        elif premass is not None:
             code = 1   # in progress
         else:
             code = 0   # pending
@@ -676,7 +644,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text("""
-                    UPDATE ams.graphrun SET
+                    UPDATE ams.physicalprep_run SET
                         batchcode       = :code,
                         batchdate       = :dt,
                         equipmentid     = :eid,
@@ -684,7 +652,7 @@ class GraphitisationRunDetailsWindow(QDialog):
                         notes           = :notes,
                         modifdatestamp  = :now,
                         modifuserstamp  = :user
-                    WHERE graphrunid = :bid
+                    WHERE physicalpreprunid = :bid
                 """), {
                     "code":  self.txtBatchCode.text().strip() or None,
                     "dt":    d.toPyDate(),
@@ -697,12 +665,12 @@ class GraphitisationRunDetailsWindow(QDialog):
                 })
                 conn.commit()
         except Exception as exc:
-            log.error("Save graphrun header %d: %s", self.batch_id, exc)
+            log.error("Save physicalprep_run header %d: %s", self.batch_id, exc)
             set_status(self._status_lbl, f"Header save failed: {exc}", "error")
 
     def _save_row(self, row: int):
-        gsid = self._gsid_map.get(row)
-        if gsid is None:
+        psid = self._psid_map.get(row)
+        if psid is None:
             return
 
         def txt(col): return self._model.item(row, col).text().strip() or None
@@ -726,51 +694,39 @@ class GraphitisationRunDetailsWindow(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text("""
-                    UPDATE ams.graphsample SET
-                        batchposition        = :pos,
-                        samplemass_mg        = :smass,
-                        fillpressure_mbar    = :fill,
-                        catalysttype         = :cat,
-                        reactortemp_c        = :temp,
-                        reductionduration_h  = :dur,
-                        finalpressure_mbar   = :final,
-                        graphitemass_mg      = :gmass,
-                        carbonyield_pct      = :yld,
-                        isaccepted           = :acc,
-                        status               = :st,
-                        rejectreason         = :rej,
-                        notes                = :notes,
-                        modifdatestamp       = :now,
-                        modifuserstamp       = :user
-                    WHERE graphsampleid = :gsid
+                    UPDATE ams.physicalprep_sample SET
+                        batchposition   = :pos,
+                        prep_method     = :method,
+                        pre_mass_mg     = :premass,
+                        post_mass_mg    = :postmass,
+                        isaccepted      = :acc,
+                        status          = :st,
+                        rejectreason    = :rej,
+                        notes           = :notes,
+                        modifdatestamp  = :now,
+                        modifuserstamp  = :user
+                    WHERE physicalprepsampleid = :psid
                 """), {
-                    "pos":   nt(C.POS),
-                    "smass": flt(C.SMASS),
-                    "fill":  flt(C.FILL),
-                    "cat":   txt(C.CAT) or "Fe",
-                    "temp":  nt(C.TEMP),
-                    "dur":   flt(C.DUR),
-                    "final": flt(C.FINAL),
-                    "gmass": flt(C.GMASS),
-                    "yld":   flt(C.YIELD),
-                    "acc":   accepted,
-                    "st":    status if status is not None else 0,
-                    "rej":   txt(C.REJECT),
-                    "notes": txt(C.NOTES),
-                    "now":   datetime.now(),
-                    "user":  user,
-                    "gsid":  gsid,
+                    "pos":      nt(C.POS),
+                    "method":   txt(C.METHOD) or "none",
+                    "premass":  flt(C.PREMASS),
+                    "postmass": flt(C.POSTMASS),
+                    "acc":      accepted,
+                    "st":       status if status is not None else 0,
+                    "rej":      txt(C.REJECT),
+                    "notes":    txt(C.NOTES),
+                    "now":      datetime.now(),
+                    "user":     user,
+                    "psid":     psid,
                 })
                 conn.commit()
         except Exception as exc:
-            log.error("Save graphsample row %d (gsid=%d): %s", row, gsid, exc)
+            log.error("Save physicalprep_sample row %d (psid=%d): %s", row, psid, exc)
             set_status(self._status_lbl, f"Row save failed: {exc}", "error")
 
     # ── Add samples ───────────────────────────────────────────────────────────
 
     def _add_samples(self):
-        existing = set(self._gsid_map.values())
-        # Get analysisids already in this batch
         existing_aids: set[int] = set()
         for row in range(self._model.rowCount()):
             it = self._model.item(row, C.AID)
@@ -789,13 +745,13 @@ class GraphitisationRunDetailsWindow(QDialog):
             with db_manager.get_connection() as conn:
                 for i, aid in enumerate(dlg.selected_aids):
                     conn.execute(text("""
-                        INSERT INTO ams.graphsample
-                            (graphrunid, analysisid, isbypass, batchposition,
-                             catalysttype, status, isaccepted,
+                        INSERT INTO ams.physicalprep_sample
+                            (physicalpreprunid, analysisid, isbypass, batchposition,
+                             status, isaccepted,
                              createdatestamp, createuserstamp)
                         VALUES
                             (:bid, :aid, FALSE, :pos,
-                             'Fe', 0, TRUE,
+                             0, TRUE,
                              :now, :user)
                         ON CONFLICT DO NOTHING
                     """), {
@@ -830,7 +786,7 @@ class GraphitisationRunDetailsWindow(QDialog):
                 self, "Incomplete Samples",
                 f"The following analyses are not yet complete or failed:\n"
                 f"{', '.join(incomplete)}\n\n"
-                "Enter graphite mass (or mark as Failed) for all samples first.",
+                "Enter post-prep mass (or mark as Failed) for all samples first.",
                 QMessageBox.Warning,
             )
             return
@@ -838,7 +794,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         if QMessageBox.question(
             self, "Mark Batch Complete",
             "Mark this batch as Complete?\n"
-            "All accepted samples will become available for AMS wheel assembly.",
+            "All accepted samples will become available for the next AMS stage.",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
         ) == QMessageBox.No:
             return
@@ -847,20 +803,20 @@ class GraphitisationRunDetailsWindow(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text("""
-                    UPDATE ams.graphrun SET
+                    UPDATE ams.physicalprep_run SET
                         runstatus      = 1,
                         modifdatestamp = :now,
                         modifuserstamp = :user
-                    WHERE graphrunid = :bid
+                    WHERE physicalpreprunid = :bid
                 """), {"now": datetime.now(), "user": user, "bid": self.batch_id})
                 conn.commit()
             self.txtBatchStatus.setText("Complete")
             self._is_locked = False
             self.btnComplete.setEnabled(False)
             self.btnAdd.setEnabled(False)
-            set_status(self._status_lbl, "Batch marked complete. Samples available for AMS.", "success")
+            set_status(self._status_lbl, "Batch marked complete.", "success")
         except Exception as exc:
-            log.error("Mark graphrun %d complete: %s", self.batch_id, exc)
+            log.error("Mark physicalprep_run %d complete: %s", self.batch_id, exc)
             show_message(self, "Error", str(exc), QMessageBox.Critical)
 
     # ── Helpers ───────────────────────────────────────────────────────────────

@@ -1,8 +1,11 @@
 """
-ams_graphitisation_run_details_gui.py — Graphitisation batch detail view.
-Provides GraphitisationRunDetailsWindow (QDialog) for entering and editing
-per-sample graphitisation data (combustion masses, reaction parameters,
-graphite yield and QA acceptance).
+ams_pretreatment_run_details_gui.py — Pretreatment batch detail view.
+Provides PretreatmentRunDetailsWindow (QDialog) for entering and editing
+per-sample ABA pretreatment data (acid/base/acid steps, mass, QA acceptance).
+
+Grid is scoped to the ABA-relevant fields (method-specific combustion/sparge/
+fraction columns are out of scope for a first pass, matching the web's own
+PretreatmentModule.tsx field list for method='ABA').
 """
 from __future__ import annotations
 import logging
@@ -34,7 +37,11 @@ log = logging.getLogger(__name__)
 
 _STATUS_LABELS = {0: "Pending", 1: "In Progress", 2: "Complete", 3: "Failed"}
 _BATCH_STATUS  = {0: "Open", 1: "Complete", 2: "Approved", 3: "Locked"}
-_CATALYSTS     = ["Fe", "Co", "Ni"]
+_METHODS = [
+    "ABA", "combustion", "acid_hydrolysis", "water_dic", "water_poc_doc",
+    "collagen_extraction", "bioapatite_hydrolysis", "hcl_surface_leaching",
+    "organic_solvent_extraction",
+]
 
 _HEADER_STYLE = """
 QGroupBox { background:#FAFAFC; border:1px solid #D9D9E3; border-radius:8px;
@@ -61,32 +68,55 @@ QHeaderView::section { background:#f0f0f0; font-weight:bold;
 # ── Column index constants ────────────────────────────────────────────────────
 
 class C:
-    POS    =  0   # batchposition
-    AID    =  1   # analysisid  (read-only)
-    SAMPLE =  2   # prefix-sampleid name (read-only)
-    SMASS  =  3   # samplemass_mg
-    FILL   =  4   # fillpressure_mbar
-    CAT    =  5   # catalysttype
-    TEMP   =  6   # reactortemp_c
-    DUR    =  7   # reductionduration_h
-    FINAL  =  8   # finalpressure_mbar
-    GMASS  =  9   # graphitemass_mg
-    YIELD  = 10   # carbonyield_pct (auto-computed)
-    ACCEPT = 11   # isaccepted (checkbox)
-    STATUS = 12   # status (read-only)
-    REJECT = 13   # rejectreason
-    NOTES  = 14   # notes
+    POS           = 0    # batchposition
+    AID           = 1    # analysisid  (read-only)
+    SAMPLE        = 2    # prefix-sampleid name (read-only)
+    PREMASS       = 3    # pretreatment_mass_mg
+    ACID1_REAGENT = 4    # acid1_reagent
+    ACID1_CONC    = 5    # acid1_conc_pct
+    ACID1_TEMP    = 6    # acid1_temp_c
+    ACID1_DUR     = 7    # acid1_duration_min
+    BASE_REAGENT  = 8    # base_reagent
+    BASE_CONC     = 9    # base_conc_pct
+    BASE_TEMP     = 10   # base_temp_c
+    BASE_DUR      = 11   # base_duration_min
+    BASE_CYCLES   = 12   # base_cycles
+    BASE_CLEAR    = 13   # base_ran_clear (checkbox)
+    ACID2_REAGENT = 14   # acid2_reagent
+    ACID2_CONC    = 15   # acid2_conc_pct
+    ACID2_TEMP    = 16   # acid2_temp_c
+    ACID2_DUR     = 17   # acid2_duration_min
+    RINSE_CYCLES  = 18   # rinse_cycles
+    FINAL_PH      = 19   # final_rinse_ph
+    DRY_TEMP      = 20   # drying_temp_c
+    DRY_DUR       = 21   # drying_duration_h
+    POSTMASS      = 22   # post_treatment_mass_mg
+    ACCEPT        = 23   # isaccepted (checkbox)
+    STATUS        = 24   # status (read-only)
+    REJECT        = 25   # rejectreason
+    NOTES         = 26   # notes
 
     HEADERS = [
         "Pos", "AnalysisID", "Sample",
-        "Sample\nMass (mg)", "Fill Press.\n(mbar)",
-        "Catalyst", "Temp\n(°C)", "Duration\n(h)", "Final Press.\n(mbar)",
-        "Graphite\nMass (mg)", "Yield\n(%)",
+        "Pre Mass\n(mg)",
+        "Acid1\nReagent", "Acid1\nConc %", "Acid1\nTemp °C", "Acid1\nDur (min)",
+        "Base\nReagent", "Base\nConc %", "Base\nTemp °C", "Base\nDur (min)",
+        "Base\nCycles", "Ran\nClear?",
+        "Acid2\nReagent", "Acid2\nConc %", "Acid2\nTemp °C", "Acid2\nDur (min)",
+        "Rinse\nCycles", "Final\nRinse pH",
+        "Dry Temp\n°C", "Dry Dur\n(h)",
+        "Post Mass\n(mg)",
         "Accepted?", "Status", "Reject Reason", "Notes",
     ]
 
-    READ_ONLY = {AID, SAMPLE, YIELD, STATUS}
-    NUMERIC   = {SMASS, FILL, TEMP, DUR, FINAL, GMASS}
+    READ_ONLY = {AID, SAMPLE, STATUS}
+    NUMERIC   = {
+        PREMASS, ACID1_CONC, ACID1_TEMP, ACID1_DUR,
+        BASE_CONC, BASE_TEMP, BASE_DUR, BASE_CYCLES,
+        ACID2_CONC, ACID2_TEMP, ACID2_DUR,
+        RINSE_CYCLES, FINAL_PH, DRY_TEMP, DRY_DUR, POSTMASS,
+    }
+    CHECKBOX  = {BASE_CLEAR, ACCEPT}
 
 
 # ── Delegates ─────────────────────────────────────────────────────────────────
@@ -125,29 +155,6 @@ class _NumDelegate(QStyledItemDelegate):
         return super().eventFilter(editor, event)
 
 
-class _CatDelegate(QStyledItemDelegate):
-    """Inline catalyst-type combo (Fe / Co / Ni)."""
-
-    def __init__(self, parent=None, active: bool = True):
-        super().__init__(parent)
-        self.active = active
-
-    def createEditor(self, parent, option, index):
-        if not self.active:
-            return None
-        cmb = QComboBox(parent)
-        cmb.addItems(_CATALYSTS)
-        return cmb
-
-    def setEditorData(self, editor, index):
-        val = index.data(Qt.EditRole) or "Fe"
-        idx = editor.findText(val)
-        editor.setCurrentIndex(idx if idx >= 0 else 0)
-
-    def setModelData(self, editor, model, index):
-        model.setData(index, editor.currentText(), Qt.EditRole)
-
-
 # ── Add-samples dialog ────────────────────────────────────────────────────────
 
 class _AddSamplesDialog(QDialog):
@@ -163,7 +170,6 @@ class _AddSamplesDialog(QDialog):
 
         lay = QVBoxLayout(self)
 
-        # search bar
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Search (ID / Sample):"))
         self.txtSearch = QLineEdit()
@@ -175,7 +181,6 @@ class _AddSamplesDialog(QDialog):
         bar.addWidget(btnSearch)
         lay.addLayout(bar)
 
-        # results table
         self._model = QStandardItemModel()
         self._model.setHorizontalHeaderLabels(
             ["AnalysisID", "Sample ID", "Sample Name", "Workflow", "Status"]
@@ -189,13 +194,12 @@ class _AddSamplesDialog(QDialog):
         self._table.horizontalHeader().setStretchLastSection(True)
         lay.addWidget(self._table, 1)
 
-        # buttons
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self._collect_selection)
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
 
-        self._search()  # load all on open
+        self._search()
 
     def _search(self):
         term = self.txtSearch.text().strip()
@@ -263,10 +267,10 @@ class _AddSamplesDialog(QDialog):
 
 # ── Main details window ───────────────────────────────────────────────────────
 
-class GraphitisationRunDetailsWindow(QDialog):
+class PretreatmentRunDetailsWindow(QDialog):
     """
-    Master-detail dialog for one graphitisation batch.
-    Header = batch metadata;  Table = per-sample reaction data.
+    Master-detail dialog for one pretreatment batch.
+    Header = batch metadata (incl. Method);  Table = per-sample ABA data.
     """
 
     def __init__(self, batch_id: int, parent=None):
@@ -277,14 +281,13 @@ class GraphitisationRunDetailsWindow(QDialog):
         self.has_write   = False
         self._is_locked  = False
         self._updating   = False
-        self._gsid_map: dict[int, int] = {}   # row → graphsampleid PK
+        self._ptsid_map: dict[int, int] = {}   # row → pretreatmentsampleid PK
 
-        self.setWindowTitle(f"Graphitisation Batch :: {batch_id}")
-        self.resize(1500, 800)
+        self.setWindowTitle(f"Pretreatment Batch :: {batch_id}")
+        self.resize(1700, 800)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
 
         self._num_delegate = _NumDelegate(None, decimals=3, active_cols=C.NUMERIC)
-        self._cat_delegate = _CatDelegate()
 
         self._build_ui()
 
@@ -295,7 +298,7 @@ class GraphitisationRunDetailsWindow(QDialog):
             self._load_detail()
             self._apply_read_only()
         except Exception as exc:
-            log.error("GraphitisationRunDetailsWindow init: %s", exc, exc_info=True)
+            log.error("PretreatmentRunDetailsWindow init: %s", exc, exc_info=True)
             set_status(self._status_lbl, f"Error: {exc}", "error")
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -303,7 +306,6 @@ class GraphitisationRunDetailsWindow(QDialog):
     def _build_ui(self):
         root = QVBoxLayout(self)
 
-        # top action bar
         bar = QHBoxLayout()
         self.btnEdit     = QPushButton("Edit")
         self.btnEdit.setCheckable(True)
@@ -327,16 +329,13 @@ class GraphitisationRunDetailsWindow(QDialog):
             bar.addWidget(w)
         root.addLayout(bar)
 
-        # header form
         self._build_header_form()
         root.addWidget(self._hdr_grp)
 
-        # separator
         line = QFrame(); line.setFrameShape(QFrame.HLine)
         line.setStyleSheet("color:#d0d0d0;")
         root.addWidget(line)
 
-        # detail table
         self._model = QStandardItemModel()
         self._table = QTableView()
         self._table.setModel(self._model)
@@ -346,17 +345,14 @@ class GraphitisationRunDetailsWindow(QDialog):
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setStyleSheet(_TABLE_STYLE)
-        self._table.setItemDelegateForColumn(C.CAT,  self._cat_delegate)
         for col in C.NUMERIC:
             self._table.setItemDelegateForColumn(col, self._num_delegate)
         root.addWidget(self._table, 1)
 
-        # status bar
         self._status_lbl = QLabel("Ready")
         self._status_lbl.setStyleSheet("padding:2px 4px; color:#555;")
         root.addWidget(self._status_lbl)
 
-        # connections
         self.btnEdit.toggled.connect(self._toggle_edit)
         self.btnAdd.clicked.connect(self._add_samples)
         self.btnComplete.clicked.connect(self._mark_complete)
@@ -382,6 +378,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         self.dateBatch.setDisplayFormat("yyyy-MM-dd")
         self.cmbEquip     = QComboBox()
         self.cmbTech      = QComboBox()
+        self.cmbMethod    = QComboBox(); self.cmbMethod.addItems(_METHODS)
         self.txtBatchStatus = QLineEdit(); self.txtBatchStatus.setReadOnly(True)
         self.txtNotes     = QTextEdit(); self.txtNotes.setMaximumHeight(55)
 
@@ -390,9 +387,10 @@ class GraphitisationRunDetailsWindow(QDialog):
         grid.addWidget(lbl("Date:"),         0, 2); grid.addWidget(self.dateBatch,       0, 3)
         grid.addWidget(lbl("Equipment:"),    1, 2); grid.addWidget(self.cmbEquip,        1, 3)
         grid.addWidget(lbl("Technician:"),   0, 4); grid.addWidget(self.cmbTech,         0, 5)
-        grid.addWidget(lbl("Batch Status:"), 1, 4); grid.addWidget(self.txtBatchStatus, 1, 5)
-        grid.addWidget(lbl("Notes:"),        2, 0, Qt.AlignTop)
-        grid.addWidget(self.txtNotes,        2, 1, 1, 5)
+        grid.addWidget(lbl("Method:"),       1, 4); grid.addWidget(self.cmbMethod,       1, 5)
+        grid.addWidget(lbl("Batch Status:"), 2, 4); grid.addWidget(self.txtBatchStatus, 2, 5)
+        grid.addWidget(lbl("Notes:"),        3, 0, Qt.AlignTop)
+        grid.addWidget(self.txtNotes,        3, 1, 1, 5)
 
     # ── Privileges ────────────────────────────────────────────────────────────
 
@@ -425,10 +423,10 @@ class GraphitisationRunDetailsWindow(QDialog):
     def _load_header(self):
         with db_manager.get_connection() as conn:
             row = conn.execute(text("""
-                SELECT graphrunid, batchcode, batchdate,
-                       equipmentid, technicianid, runstatus, islocked, notes
-                FROM ams.graphrun
-                WHERE graphrunid = :bid
+                SELECT pretreatmentrunid, batchcode, batchdate,
+                       equipmentid, technicianid, runstatus, islocked, notes, method
+                FROM ams.pretreatmentrun
+                WHERE pretreatmentrunid = :bid
             """), {"bid": self.batch_id}).fetchone()
 
         if not row:
@@ -445,6 +443,8 @@ class GraphitisationRunDetailsWindow(QDialog):
         self.txtBatchStatus.setText(_BATCH_STATUS.get(status_code, str(status_code)))
         self._is_locked = bool(row[6]) if row[6] is not None else False
         self.txtNotes.setPlainText(row[7] or "")
+        idx = self.cmbMethod.findText(row[8] or "ABA")
+        self.cmbMethod.setCurrentIndex(idx if idx >= 0 else 0)
 
     def _set_combo(self, cmb: QComboBox, val):
         if val is None:
@@ -458,85 +458,104 @@ class GraphitisationRunDetailsWindow(QDialog):
     def _load_detail(self):
         with db_manager.get_connection() as conn:
             rows = conn.execute(text("""
-                SELECT gs.graphsampleid,
-                       gs.batchposition,
-                       gs.analysisid,
+                SELECT ps.pretreatmentsampleid,
+                       ps.batchposition,
+                       ps.analysisid,
                        a.prefix || '-' || CAST(a.sampleid AS TEXT) AS sampleref,
                        s.sname,
-                       gs.samplemass_mg,
-                       gs.fillpressure_mbar,
-                       gs.catalysttype,
-                       gs.reactortemp_c,
-                       gs.reductionduration_h,
-                       gs.finalpressure_mbar,
-                       gs.graphitemass_mg,
-                       gs.carbonyield_pct,
-                       gs.isaccepted,
-                       gs.status,
-                       gs.rejectreason,
-                       gs.notes
-                FROM ams.graphsample gs
-                JOIN public.analysis a ON a.analysisid = gs.analysisid
+                       ps.pretreatment_mass_mg,
+                       ps.acid1_reagent, ps.acid1_conc_pct, ps.acid1_temp_c, ps.acid1_duration_min,
+                       ps.base_reagent, ps.base_conc_pct, ps.base_temp_c, ps.base_duration_min,
+                       ps.base_cycles, ps.base_ran_clear,
+                       ps.acid2_reagent, ps.acid2_conc_pct, ps.acid2_temp_c, ps.acid2_duration_min,
+                       ps.rinse_cycles, ps.final_rinse_ph,
+                       ps.drying_temp_c, ps.drying_duration_h,
+                       ps.post_treatment_mass_mg,
+                       ps.isaccepted, ps.status, ps.rejectreason, ps.notes
+                FROM ams.pretreatmentsample ps
+                JOIN public.analysis a ON a.analysisid = ps.analysisid
                 JOIN public.sample   s ON s.sampleid   = a.sampleid AND s.prefix = a.prefix
-                WHERE gs.graphrunid = :bid
-                ORDER BY gs.batchposition, gs.graphsampleid
+                WHERE ps.pretreatmentrunid = :bid
+                ORDER BY ps.batchposition, ps.pretreatmentsampleid
             """), {"bid": self.batch_id}).fetchall()
 
         self._updating = True
         try:
             self._model.clear()
             self._model.setHorizontalHeaderLabels(C.HEADERS)
-            self._gsid_map.clear()
+            self._ptsid_map.clear()
             ro_brush = QBrush(QColor("#f5f5f5"))
 
             for r in rows:
-                (gsid, pos, aid, sref, sname,
-                 smass, fill, cat, temp, dur, final,
-                 gmass, yld, accepted, status, reject, notes) = r
+                (ptsid, pos, aid, sref, sname,
+                 premass,
+                 acid1_reag, acid1_conc, acid1_temp, acid1_dur,
+                 base_reag, base_conc, base_temp, base_dur, base_cycles, base_clear,
+                 acid2_reag, acid2_conc, acid2_temp, acid2_dur,
+                 rinse_cycles, final_ph,
+                 dry_temp, dry_dur,
+                 postmass,
+                 accepted, status, reject, notes) = r
 
                 sample_label = f"{sref}  {sname or ''}".strip()
                 status_code  = int(status) if status is not None else 0
 
-                items = [
-                    QStandardItem(str(pos) if pos is not None else ""),   # C.POS
-                    QStandardItem(str(aid)),                               # C.AID
-                    QStandardItem(sample_label),                           # C.SAMPLE
-                    QStandardItem(self._fmt(smass)),                       # C.SMASS
-                    QStandardItem(self._fmt(fill)),                        # C.FILL
-                    QStandardItem(cat or "Fe"),                            # C.CAT
-                    QStandardItem(self._fmt(temp, 0)),                     # C.TEMP
-                    QStandardItem(self._fmt(dur)),                         # C.DUR
-                    QStandardItem(self._fmt(final)),                       # C.FINAL
-                    QStandardItem(self._fmt(gmass)),                       # C.GMASS
-                    QStandardItem(self._fmt(yld, 1)),                      # C.YIELD
-                    QStandardItem(""),                                     # C.ACCEPT (checkbox)
-                    QStandardItem(_STATUS_LABELS.get(status_code, "?")),   # C.STATUS
-                    QStandardItem(reject or ""),                           # C.REJECT
-                    QStandardItem(notes or ""),                            # C.NOTES
-                ]
+                items = [None] * len(C.HEADERS)
+                items[C.POS]           = QStandardItem(str(pos) if pos is not None else "")
+                items[C.AID]           = QStandardItem(str(aid))
+                items[C.SAMPLE]        = QStandardItem(sample_label)
+                items[C.PREMASS]       = QStandardItem(self._fmt(premass))
+                items[C.ACID1_REAGENT] = QStandardItem(acid1_reag or "")
+                items[C.ACID1_CONC]    = QStandardItem(self._fmt(acid1_conc))
+                items[C.ACID1_TEMP]    = QStandardItem(self._fmt(acid1_temp))
+                items[C.ACID1_DUR]     = QStandardItem(self._fmt(acid1_dur))
+                items[C.BASE_REAGENT]  = QStandardItem(base_reag or "")
+                items[C.BASE_CONC]     = QStandardItem(self._fmt(base_conc))
+                items[C.BASE_TEMP]     = QStandardItem(self._fmt(base_temp))
+                items[C.BASE_DUR]      = QStandardItem(self._fmt(base_dur))
+                items[C.BASE_CYCLES]   = QStandardItem(self._fmt(base_cycles, 0))
+                items[C.BASE_CLEAR]    = QStandardItem("")
+                items[C.ACID2_REAGENT] = QStandardItem(acid2_reag or "")
+                items[C.ACID2_CONC]    = QStandardItem(self._fmt(acid2_conc))
+                items[C.ACID2_TEMP]    = QStandardItem(self._fmt(acid2_temp))
+                items[C.ACID2_DUR]     = QStandardItem(self._fmt(acid2_dur))
+                items[C.RINSE_CYCLES]  = QStandardItem(self._fmt(rinse_cycles, 0))
+                items[C.FINAL_PH]      = QStandardItem(self._fmt(final_ph))
+                items[C.DRY_TEMP]      = QStandardItem(self._fmt(dry_temp))
+                items[C.DRY_DUR]       = QStandardItem(self._fmt(dry_dur))
+                items[C.POSTMASS]      = QStandardItem(self._fmt(postmass))
+                items[C.ACCEPT]        = QStandardItem("")
+                items[C.STATUS]        = QStandardItem(_STATUS_LABELS.get(status_code, "?"))
+                items[C.REJECT]        = QStandardItem(reject or "")
+                items[C.NOTES]         = QStandardItem(notes or "")
 
-                # read-only columns
                 for c in C.READ_ONLY:
                     items[c].setEditable(False)
                     items[c].setBackground(ro_brush)
                     items[c].setFlags(items[c].flags() & ~Qt.ItemIsEditable)
 
-                # accepted checkbox
-                chk = items[C.ACCEPT]
-                chk.setCheckable(True)
-                chk.setCheckState(Qt.Checked if (accepted is True or accepted == 1) else Qt.Unchecked)
-                chk.setFlags(
-                    (chk.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                base_chk = items[C.BASE_CLEAR]
+                base_chk.setCheckable(True)
+                base_chk.setCheckState(Qt.Checked if (base_clear is True or base_clear == 1) else Qt.Unchecked)
+                base_chk.setFlags(
+                    (base_chk.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     & ~Qt.ItemIsEditable
                 )
 
-                # store PKs
-                items[C.AID].setData(aid,        Qt.UserRole)
+                acc_chk = items[C.ACCEPT]
+                acc_chk.setCheckable(True)
+                acc_chk.setCheckState(Qt.Checked if (accepted is True or accepted == 1) else Qt.Unchecked)
+                acc_chk.setFlags(
+                    (acc_chk.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    & ~Qt.ItemIsEditable
+                )
+
+                items[C.AID].setData(aid, Qt.UserRole)
                 items[C.STATUS].setData(status_code, Qt.UserRole)
 
                 row_idx = self._model.rowCount()
                 self._model.appendRow(items)
-                self._gsid_map[row_idx] = gsid
+                self._ptsid_map[row_idx] = ptsid
 
             self._table.resizeColumnsToContents()
             h = self._table.horizontalHeader()
@@ -554,7 +573,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         if not self.has_write:
             self.btnEdit.setChecked(False)
             show_message(self, "Access Denied",
-                         "You do not have write access to Graphitisation.", QMessageBox.Warning)
+                         "You do not have write access to AMS.", QMessageBox.Warning)
             return
         if self._is_locked:
             self.btnEdit.setChecked(False)
@@ -580,6 +599,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         self.dateBatch.setReadOnly(True)
         self.cmbEquip.setEnabled(False)
         self.cmbTech.setEnabled(False)
+        self.cmbMethod.setEnabled(False)
         self.btnEdit.setEnabled(self.has_write and not self._is_locked)
         self.btnAdd.setEnabled(self.has_write and not self._is_locked)
         self.btnComplete.setEnabled(
@@ -593,6 +613,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         self.dateBatch.setReadOnly(False)
         self.cmbEquip.setEnabled(True)
         self.cmbTech.setEnabled(True)
+        self.cmbMethod.setEnabled(True)
 
     def _update_cell_flags(self):
         self._model.blockSignals(True)
@@ -604,7 +625,7 @@ class GraphitisationRunDetailsWindow(QDialog):
                         continue
                     if col in C.READ_ONLY:
                         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
-                    elif col == C.ACCEPT:
+                    elif col in C.CHECKBOX:
                         if self.is_editing:
                             it.setFlags(
                                 (it.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -633,33 +654,18 @@ class GraphitisationRunDetailsWindow(QDialog):
         self._updating = True
         try:
             row, col = item.row(), item.column()
-            # Recalculate yield whenever masses change
-            if col in (C.SMASS, C.GMASS):
-                self._recalc_yield(row)
-            # Auto-update sample status
             self._recalc_status(row)
-            # Persist
             self._save_row(row)
         finally:
             self._updating = False
 
-    def _recalc_yield(self, row: int):
-        smass = self._float(self._model.item(row, C.SMASS))
-        gmass = self._float(self._model.item(row, C.GMASS))
-        if smass and gmass and smass > 0:
-            yld = (gmass / smass) * 100.0
-            self._model.item(row, C.YIELD).setText(f"{yld:.1f}")
-        else:
-            self._model.item(row, C.YIELD).setText("")
-
     def _recalc_status(self, row: int):
-        gmass = self._float(self._model.item(row, C.GMASS))
-        smass = self._float(self._model.item(row, C.SMASS))
-        fill  = self._float(self._model.item(row, C.FILL))
+        premass  = self._float(self._model.item(row, C.PREMASS))
+        postmass = self._float(self._model.item(row, C.POSTMASS))
 
-        if gmass is not None:
+        if postmass is not None:
             code = 2   # complete
-        elif smass is not None or fill is not None:
+        elif premass is not None:
             code = 1   # in progress
         else:
             code = 0   # pending
@@ -676,33 +682,35 @@ class GraphitisationRunDetailsWindow(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text("""
-                    UPDATE ams.graphrun SET
+                    UPDATE ams.pretreatmentrun SET
                         batchcode       = :code,
                         batchdate       = :dt,
                         equipmentid     = :eid,
                         technicianid    = :tid,
+                        method          = :method,
                         notes           = :notes,
                         modifdatestamp  = :now,
                         modifuserstamp  = :user
-                    WHERE graphrunid = :bid
+                    WHERE pretreatmentrunid = :bid
                 """), {
-                    "code":  self.txtBatchCode.text().strip() or None,
-                    "dt":    d.toPyDate(),
-                    "eid":   self.cmbEquip.currentData(),
-                    "tid":   self.cmbTech.currentData(),
-                    "notes": self.txtNotes.toPlainText().strip() or None,
-                    "now":   datetime.now(),
-                    "user":  user,
-                    "bid":   self.batch_id,
+                    "code":   self.txtBatchCode.text().strip() or None,
+                    "dt":     d.toPyDate(),
+                    "eid":    self.cmbEquip.currentData(),
+                    "tid":    self.cmbTech.currentData(),
+                    "method": self.cmbMethod.currentText(),
+                    "notes":  self.txtNotes.toPlainText().strip() or None,
+                    "now":    datetime.now(),
+                    "user":   user,
+                    "bid":    self.batch_id,
                 })
                 conn.commit()
         except Exception as exc:
-            log.error("Save graphrun header %d: %s", self.batch_id, exc)
+            log.error("Save pretreatmentrun header %d: %s", self.batch_id, exc)
             set_status(self._status_lbl, f"Header save failed: {exc}", "error")
 
     def _save_row(self, row: int):
-        gsid = self._gsid_map.get(row)
-        if gsid is None:
+        ptsid = self._ptsid_map.get(row)
+        if ptsid is None:
             return
 
         def txt(col): return self._model.item(row, col).text().strip() or None
@@ -719,58 +727,81 @@ class GraphitisationRunDetailsWindow(QDialog):
             except ValueError:
                 return None
 
-        accepted = self._model.item(row, C.ACCEPT).checkState() == Qt.Checked
-        status   = self._model.item(row, C.STATUS).data(Qt.UserRole)
-        user     = normalize_login_name(get_current_user_id())
+        base_clear = self._model.item(row, C.BASE_CLEAR).checkState() == Qt.Checked
+        accepted   = self._model.item(row, C.ACCEPT).checkState() == Qt.Checked
+        status     = self._model.item(row, C.STATUS).data(Qt.UserRole)
+        user       = normalize_login_name(get_current_user_id())
 
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text("""
-                    UPDATE ams.graphsample SET
-                        batchposition        = :pos,
-                        samplemass_mg        = :smass,
-                        fillpressure_mbar    = :fill,
-                        catalysttype         = :cat,
-                        reactortemp_c        = :temp,
-                        reductionduration_h  = :dur,
-                        finalpressure_mbar   = :final,
-                        graphitemass_mg      = :gmass,
-                        carbonyield_pct      = :yld,
-                        isaccepted           = :acc,
-                        status               = :st,
-                        rejectreason         = :rej,
-                        notes                = :notes,
-                        modifdatestamp       = :now,
-                        modifuserstamp       = :user
-                    WHERE graphsampleid = :gsid
+                    UPDATE ams.pretreatmentsample SET
+                        batchposition         = :pos,
+                        pretreatment_mass_mg   = :premass,
+                        acid1_reagent          = :acid1_reag,
+                        acid1_conc_pct         = :acid1_conc,
+                        acid1_temp_c           = :acid1_temp,
+                        acid1_duration_min     = :acid1_dur,
+                        base_reagent           = :base_reag,
+                        base_conc_pct          = :base_conc,
+                        base_temp_c            = :base_temp,
+                        base_duration_min      = :base_dur,
+                        base_cycles            = :base_cycles,
+                        base_ran_clear         = :base_clear,
+                        acid2_reagent          = :acid2_reag,
+                        acid2_conc_pct         = :acid2_conc,
+                        acid2_temp_c           = :acid2_temp,
+                        acid2_duration_min     = :acid2_dur,
+                        rinse_cycles           = :rinse_cycles,
+                        final_rinse_ph         = :final_ph,
+                        drying_temp_c          = :dry_temp,
+                        drying_duration_h      = :dry_dur,
+                        post_treatment_mass_mg = :postmass,
+                        isaccepted             = :acc,
+                        status                 = :st,
+                        rejectreason           = :rej,
+                        notes                  = :notes,
+                        modifdatestamp         = :now,
+                        modifuserstamp         = :user
+                    WHERE pretreatmentsampleid = :ptsid
                 """), {
-                    "pos":   nt(C.POS),
-                    "smass": flt(C.SMASS),
-                    "fill":  flt(C.FILL),
-                    "cat":   txt(C.CAT) or "Fe",
-                    "temp":  nt(C.TEMP),
-                    "dur":   flt(C.DUR),
-                    "final": flt(C.FINAL),
-                    "gmass": flt(C.GMASS),
-                    "yld":   flt(C.YIELD),
-                    "acc":   accepted,
-                    "st":    status if status is not None else 0,
-                    "rej":   txt(C.REJECT),
-                    "notes": txt(C.NOTES),
-                    "now":   datetime.now(),
-                    "user":  user,
-                    "gsid":  gsid,
+                    "pos":          nt(C.POS),
+                    "premass":      flt(C.PREMASS),
+                    "acid1_reag":   txt(C.ACID1_REAGENT),
+                    "acid1_conc":   flt(C.ACID1_CONC),
+                    "acid1_temp":   flt(C.ACID1_TEMP),
+                    "acid1_dur":    flt(C.ACID1_DUR),
+                    "base_reag":    txt(C.BASE_REAGENT),
+                    "base_conc":    flt(C.BASE_CONC),
+                    "base_temp":    flt(C.BASE_TEMP),
+                    "base_dur":     flt(C.BASE_DUR),
+                    "base_cycles":  nt(C.BASE_CYCLES),
+                    "base_clear":   base_clear,
+                    "acid2_reag":   txt(C.ACID2_REAGENT),
+                    "acid2_conc":   flt(C.ACID2_CONC),
+                    "acid2_temp":   flt(C.ACID2_TEMP),
+                    "acid2_dur":    flt(C.ACID2_DUR),
+                    "rinse_cycles": nt(C.RINSE_CYCLES),
+                    "final_ph":     flt(C.FINAL_PH),
+                    "dry_temp":     flt(C.DRY_TEMP),
+                    "dry_dur":      flt(C.DRY_DUR),
+                    "postmass":     flt(C.POSTMASS),
+                    "acc":          accepted,
+                    "st":           status if status is not None else 0,
+                    "rej":          txt(C.REJECT),
+                    "notes":        txt(C.NOTES),
+                    "now":          datetime.now(),
+                    "user":         user,
+                    "ptsid":        ptsid,
                 })
                 conn.commit()
         except Exception as exc:
-            log.error("Save graphsample row %d (gsid=%d): %s", row, gsid, exc)
+            log.error("Save pretreatmentsample row %d (ptsid=%d): %s", row, ptsid, exc)
             set_status(self._status_lbl, f"Row save failed: {exc}", "error")
 
     # ── Add samples ───────────────────────────────────────────────────────────
 
     def _add_samples(self):
-        existing = set(self._gsid_map.values())
-        # Get analysisids already in this batch
         existing_aids: set[int] = set()
         for row in range(self._model.rowCount()):
             it = self._model.item(row, C.AID)
@@ -781,27 +812,29 @@ class GraphitisationRunDetailsWindow(QDialog):
         if dlg.exec_() != QDialog.Accepted or not dlg.selected_aids:
             return
 
-        user = normalize_login_name(get_current_user_id())
-        now  = datetime.now()
+        user   = normalize_login_name(get_current_user_id())
+        now    = datetime.now()
+        method = self.cmbMethod.currentText()
         next_pos = self._model.rowCount() + 1
 
         try:
             with db_manager.get_connection() as conn:
                 for i, aid in enumerate(dlg.selected_aids):
                     conn.execute(text("""
-                        INSERT INTO ams.graphsample
-                            (graphrunid, analysisid, isbypass, batchposition,
-                             catalysttype, status, isaccepted,
+                        INSERT INTO ams.pretreatmentsample
+                            (pretreatmentrunid, analysisid, isbypass, batchposition,
+                             method, status, isaccepted,
                              createdatestamp, createuserstamp)
                         VALUES
                             (:bid, :aid, FALSE, :pos,
-                             'Fe', 0, TRUE,
+                             :method, 0, TRUE,
                              :now, :user)
                         ON CONFLICT DO NOTHING
                     """), {
                         "bid": self.batch_id,
                         "aid": aid,
                         "pos": next_pos + i,
+                        "method": method,
                         "now": now,
                         "user": user,
                     })
@@ -816,7 +849,6 @@ class GraphitisationRunDetailsWindow(QDialog):
     # ── Complete batch ────────────────────────────────────────────────────────
 
     def _mark_complete(self):
-        # Check all samples are complete or failed
         incomplete = []
         for row in range(self._model.rowCount()):
             it = self._model.item(row, C.STATUS)
@@ -830,7 +862,7 @@ class GraphitisationRunDetailsWindow(QDialog):
                 self, "Incomplete Samples",
                 f"The following analyses are not yet complete or failed:\n"
                 f"{', '.join(incomplete)}\n\n"
-                "Enter graphite mass (or mark as Failed) for all samples first.",
+                "Enter post-treatment mass (or mark as Failed) for all samples first.",
                 QMessageBox.Warning,
             )
             return
@@ -838,7 +870,7 @@ class GraphitisationRunDetailsWindow(QDialog):
         if QMessageBox.question(
             self, "Mark Batch Complete",
             "Mark this batch as Complete?\n"
-            "All accepted samples will become available for AMS wheel assembly.",
+            "All accepted samples will become available for the next AMS stage.",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
         ) == QMessageBox.No:
             return
@@ -847,20 +879,20 @@ class GraphitisationRunDetailsWindow(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 conn.execute(text("""
-                    UPDATE ams.graphrun SET
+                    UPDATE ams.pretreatmentrun SET
                         runstatus      = 1,
                         modifdatestamp = :now,
                         modifuserstamp = :user
-                    WHERE graphrunid = :bid
+                    WHERE pretreatmentrunid = :bid
                 """), {"now": datetime.now(), "user": user, "bid": self.batch_id})
                 conn.commit()
             self.txtBatchStatus.setText("Complete")
             self._is_locked = False
             self.btnComplete.setEnabled(False)
             self.btnAdd.setEnabled(False)
-            set_status(self._status_lbl, "Batch marked complete. Samples available for AMS.", "success")
+            set_status(self._status_lbl, "Batch marked complete.", "success")
         except Exception as exc:
-            log.error("Mark graphrun %d complete: %s", self.batch_id, exc)
+            log.error("Mark pretreatmentrun %d complete: %s", self.batch_id, exc)
             show_message(self, "Error", str(exc), QMessageBox.Critical)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
