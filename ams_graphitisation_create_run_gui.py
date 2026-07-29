@@ -291,9 +291,15 @@ class GraphitisationCreateRunDialog(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 self.cmbEquip.addItem("— Select —", None)
+                # categoryid 18 = Graphitisation (job_procedure renumber,
+                # migration 080) -- scopes this picker to Graphitisation
+                # equipment only, matching every other AMS stage.
                 for r in conn.execute(text(
-                    "SELECT EquipmentID, EquipmentName FROM Equipment "
-                    "WHERE IsObsolete IS NOT TRUE ORDER BY EquipmentName"
+                    "SELECT DISTINCT e.EquipmentID, e.EquipmentName FROM Equipment e "
+                    "JOIN equipment_job_procedure ejp ON ejp.equipmentid = e.EquipmentID "
+                    "JOIN job_procedure jp ON jp.id = ejp.categoryid "
+                    "WHERE jp.id = 18 AND e.IsObsolete IS NOT TRUE "
+                    "ORDER BY e.EquipmentName"
                 )):
                     self.cmbEquip.addItem(r[1], r[0])
 

@@ -326,10 +326,15 @@ class AMSCreateRunDialog(QDialog):
     def _load_lookups(self):
         try:
             with db_manager.get_connection() as conn:
-                # AMS machines (CategoryID TBD — show all non-obsolete for now)
+                # AMS machines: categoryid 19 = AMS Measurement (job_procedure
+                # renumber, migration 080) -- scopes this picker to AMS
+                # Measurement equipment only, matching every other AMS stage.
                 for r in conn.execute(text(
-                    "SELECT EquipmentID, EquipmentName FROM Equipment "
-                    "WHERE IsObsolete IS NOT TRUE ORDER BY EquipmentName"
+                    "SELECT DISTINCT e.EquipmentID, e.EquipmentName FROM Equipment e "
+                    "JOIN equipment_job_procedure ejp ON ejp.equipmentid = e.EquipmentID "
+                    "JOIN job_procedure jp ON jp.id = ejp.categoryid "
+                    "WHERE jp.id = 19 AND e.IsObsolete IS NOT TRUE "
+                    "ORDER BY e.EquipmentName"
                 )):
                     self.cmbEquip.addItem(r[1], r[0])
 
@@ -704,6 +709,12 @@ class AMSCreateRunDialog(QDialog):
             return
         if self.modelWheel.rowCount() == 0:
             show_message(self, "Validation", "Load a wheel template first.", QMessageBox.Warning)
+            return
+        unknown_slots = sum(1 for inf in self._wheel_layout if inf["type"] == "unknown")
+        if unknown_slots > 0 and len(self._empty_sample_rows()) == unknown_slots:
+            show_message(self, "Validation",
+                         "Add at least one sample to the wheel before saving.",
+                         QMessageBox.Warning)
             return
 
         # Collect wheel rows
