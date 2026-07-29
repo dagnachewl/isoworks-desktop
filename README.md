@@ -7,7 +7,7 @@ PyQt desktop client for IsoWorks — the same lab pipelines as [isoworks-web](..
 `isoworks_core` (data reduction engines, DB layer, parsers) is a separate, independent sibling repo shared with `isoworks-web` — clone it first:
 
 ```bash
-git clone <isoworks-core-repo-url> ../isoworks-core
+git clone https://github.com/dagnachewl/isoworks-core.git ../isoworks-core
 ```
 
 Then set up this app's environment (a conda env named `isoworks` is what the rest of this README and `IsoWorks.spec` assume, but a plain venv works too — `requirements.txt` covers everything including PyQt5):
