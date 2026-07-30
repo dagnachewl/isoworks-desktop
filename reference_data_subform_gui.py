@@ -126,7 +126,7 @@ class ReferenceDataSubform(QWidget):
                            rd.AvailableDateTo,
                            rd.Source
                     FROM   ReferenceControlData rd
-                    LEFT JOIN Measurables m       ON rd.MeasurableID = m.MeasurableID
+                    LEFT JOIN Analytes m          ON rd.MeasurableID = m.AnalyteID
                     LEFT JOIN MeasurementUnit u   ON rd.UnitID       = u.UnitID
                     WHERE  rd.ReferenceID = :rid
                     ORDER  BY m.ParameterLabel, rd.AvailableDateFrom DESC
@@ -286,8 +286,8 @@ class EditCertifiedValueDialog(QDialog):
         try:
             with db_manager.get_connection() as conn:
                 for r in conn.execute(text(
-                    "SELECT MeasurableID, ParameterLabel "
-                    "FROM Measurables ORDER BY MeasurableID"
+                    "SELECT AnalyteID, ParameterLabel "
+                    "FROM Analytes ORDER BY AnalyteID"
                 )):
                     self.cmbMeas.addItem(r[1], r[0])
 

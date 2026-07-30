@@ -1692,11 +1692,11 @@ class _SiamStandardPage(QWidget):
 
                 # Measurables present in SIAnalysisResult
                 rows = conn.execute(text("""
-                    SELECT DISTINCT m.MeasurableID, m.MeasurableName
-                    FROM Measurables m
+                    SELECT DISTINCT m.AnalyteID AS MeasurableID, m.AnalyteName AS MeasurableName
+                    FROM Analytes m
                     WHERE EXISTS (
                         SELECT 1 FROM SIAM.SIAnalysisResult r
-                        WHERE r.MeasurableID = m.MeasurableID
+                        WHERE r.MeasurableID = m.AnalyteID
                     )
                     ORDER BY m.MeasurableName
                 """)).fetchall()
@@ -1761,7 +1761,7 @@ class _SiamStandardPage(QWidget):
                 r.SIAnalysisRunID                       AS run_id,
                 e.EquipmentName                         AS instrument,
                 s.sName                                 AS std_name,
-                m.MeasurableName                        AS measurable,
+                m.AnalyteName                            AS measurable,
                 res.fValue                              AS value,
                 res.fValueUnc                           AS unc
             FROM SIAM.SIAnalysisResult   res
@@ -1770,7 +1770,7 @@ class _SiamStandardPage(QWidget):
             JOIN Analysis                 a  ON a.AnalysisID       = ll.AnalysisID
             JOIN Sample                   s  ON s.SampleID         = a.SampleID
                                             AND s.Prefix           = a.Prefix
-            JOIN Measurables              m  ON m.MeasurableID     = res.MeasurableID
+            JOIN Analytes                 m  ON m.AnalyteID        = res.MeasurableID
             LEFT JOIN Equipment           e  ON e.EquipmentID      = r.EquipmentID
             {where}
             ORDER BY r.RunStartTime, r.SIAnalysisRunID

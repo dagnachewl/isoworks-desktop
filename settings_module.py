@@ -15,6 +15,7 @@ from PyQt5.QtCore import QSettings
 from db_core import db_manager
 from sqlalchemy import text
 from help_browser import make_help_button
+from settings_style import BTN_ADD_SS
 
 _PRINT_SETTINGS_ORG = "YourOrg"
 _PRINT_SETTINGS_APP = "ISOTOPES_SUITE"
@@ -86,6 +87,7 @@ class PrinterSettingsGroup(QGroupBox):
         form.addRow("Page Margin:", self.spnMargin)
 
         self.btnSave = QPushButton("Save Print Settings")
+        self.btnSave.setStyleSheet(BTN_ADD_SS)
         self.btnSave.clicked.connect(self._save)
         form.addRow("", self.btnSave)
 
@@ -219,6 +221,7 @@ class SettingsWidget(QWidget):
         main_layout.addLayout(input_layout)
         
         self.btn_set_connection = QPushButton("Test & Save Connection")
+        self.btn_set_connection.setStyleSheet(BTN_ADD_SS)
         
         # Connect signals
         self.rb_conn_file.toggled.connect(self._on_connection_mode_changed)

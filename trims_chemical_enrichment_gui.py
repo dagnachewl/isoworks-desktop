@@ -403,8 +403,8 @@ class ChemicalEnrichmentWindow(QDialog):
             # Measurables that are LSC-relevant (non-tritium handled here)
             self.cmbIsotope.addItem("", None)
             for r in conn.execute(text(
-                "SELECT MeasurableID, MeasurableName FROM Measurables "
-                "WHERE MeasurableID <> 3 ORDER BY MeasurableName"
+                "SELECT AnalyteID AS MeasurableID, AnalyteName AS MeasurableName FROM Analytes "
+                "WHERE AnalyteID <> 3 ORDER BY AnalyteName"
             )):
                 self.cmbIsotope.addItem(r.MeasurableName, r.MeasurableID)
 
@@ -417,9 +417,9 @@ class ChemicalEnrichmentWindow(QDialog):
             row = conn.execute(text("""
                 SELECT r.RunID, r.MeasurableID, r.EnrichmentMethod,
                        r.RunDate, r.IsFinished, r.TechnicianID, r.Remarks,
-                       m.MeasurableName
+                       m.AnalyteName AS MeasurableName
                 FROM TRIMS.ChemEnrRun r
-                LEFT JOIN Measurables m ON m.MeasurableID = r.MeasurableID
+                LEFT JOIN Analytes m ON m.AnalyteID = r.MeasurableID
                 WHERE r.RunID = :rid
             """), {"rid": self.run_id}).fetchone()
 

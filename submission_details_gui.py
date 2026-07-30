@@ -531,12 +531,12 @@ class SubmissionDetailsWindow(QMainWindow):
                 
                 # 2. Results
                 sql = f"""
-                    SELECT F.AnalysisID, ShortName, Measurables.ParameterLabel, Measurables.MeasurableName, Analysis.SampleID, F.fValue, F.fValueUnc, F.RejectFlag, StatusLookup.Description
-                    FROM FinalValue F 
-                    JOIN Analysis ON F.AnalysisID = Analysis.AnalysisID 
+                    SELECT F.AnalysisID, ShortName, Analytes.ParameterLabel, Analytes.AnalyteName AS MeasurableName, Analysis.SampleID, F.fValue, F.fValueUnc, F.RejectFlag, StatusLookup.Description
+                    FROM FinalValue F
+                    JOIN Analysis ON F.AnalysisID = Analysis.AnalysisID
                     JOIN Sample ON Analysis.SampleID = Sample.SampleID AND Sample.Prefix=Analysis.Prefix
-                    JOIN Measurables ON F.analyteid = Measurables.MeasurableID
-                    LEFT JOIN MeasurementUnit ON MeasurementUnit.UnitID = Measurables.UnitID
+                    JOIN Analytes ON F.analyteid = Analytes.AnalyteID
+                    LEFT JOIN MeasurementUnit ON MeasurementUnit.UnitID = Analytes.UnitID
                     JOIN StatusLookup ON StatusLookup.Status = Analysis.Status
                     WHERE Sample.SubmissionID = :sid
                 """

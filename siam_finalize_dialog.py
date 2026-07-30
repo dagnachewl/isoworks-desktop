@@ -405,7 +405,7 @@ class SiamFinalizeDialog(QDialog):
                     AVG(res.fValue)   AS val,
                     AVG(res.fValueUnc) AS unc
                 FROM SIAM.SIAnalysisResult res
-                JOIN Measurables m ON res.MeasurableID = m.MeasurableID
+                JOIN Analytes m ON res.MeasurableID = m.AnalyteID
                 JOIN SIAM.SIAnalysisLoadList ll ON res.SIAnalysisID = ll.SIAnalysisID
                 WHERE ll.SIAnalysisRunID = :rid
                   AND ll.AnalysisID      = :aid
@@ -420,7 +420,7 @@ class SiamFinalizeDialog(QDialog):
                     res.fValue,
                     res.fValueUnc
                 FROM SIAM.SIAnalysisResult res
-                JOIN Measurables m ON res.MeasurableID = m.MeasurableID
+                JOIN Analytes m ON res.MeasurableID = m.AnalyteID
                 JOIN SIAM.SIAnalysisLoadList ll ON res.SIAnalysisID = ll.SIAnalysisID
                 WHERE ll.SIAnalysisRunID = :rid
                   AND ll.AnalysisID      = :aid

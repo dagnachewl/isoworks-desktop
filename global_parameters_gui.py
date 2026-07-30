@@ -21,6 +21,7 @@ from db_core import db_manager
 from sqlalchemy import text
 from gui_utils import show_message
 from help_browser import make_help_button
+from settings_style import BTN_SS, BTN_ADD_SS
 
 class GlobalParametersWidget(QWidget):
     """
@@ -55,8 +56,11 @@ class GlobalParametersWidget(QWidget):
 
     # --- UI Creation ---
     def _create_action_buttons(self):
-        l = QHBoxLayout(); self.btnNew = QPushButton("New"); self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save"); self.btnCancel = QPushButton("Cancel")
+        l = QHBoxLayout()
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
         l.addStretch(1)
         for b in [self.btnNew, self.btnEdit, self.btnSave, self.btnCancel]: l.addWidget(b)
         l.addWidget(make_help_button(self, "global_params"))

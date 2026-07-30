@@ -418,7 +418,9 @@ class TrimsDistillationDetailsWindow(QDialog):
         
         self.btnEditPost = QPushButton("Edit EC After Distillation")
         self.btnEditPost.setCheckable(True)
-        self.btnEditPost.setEnabled(False) 
+        self.btnEditPost.setEnabled(False)
+
+        self.btnClose = QPushButton("Close")
         
         self.txtRunID = QLineEdit()
         self.dtStart = QDateTimeEdit()
@@ -445,7 +447,7 @@ class TrimsDistillationDetailsWindow(QDialog):
 
         self.status_label = QLabel("")
         set_status(self.status_label, "Ready", "neutral")
-        
+
         self.current_mode = self.MODE_PRE
         self.max_ec_small: float = 0.0
 
@@ -476,17 +478,19 @@ class TrimsDistillationDetailsWindow(QDialog):
         top_actions.addWidget(self.btnFinalize)
         top_actions.addWidget(self.btnPrintLabels)
         top_actions.addWidget(self.btnPrintReport)
+        top_actions.addSpacing(12)
+        top_actions.addWidget(self.btnClose)
         main.addLayout(top_actions)
         
         self._build_header_form()
         main.addWidget(self.header_group)
-        
+
         mode_actions = QHBoxLayout()
         mode_actions.addWidget(QLabel("<b>Pre- and Post-Distillation EC Data Entry:</b>"))
         mode_actions.addSpacing(100)
         mode_actions.addWidget(self.btnEditPost)
-        mode_actions.addStretch(1)    
-        main.addLayout(mode_actions)        
+        mode_actions.addStretch(1)
+        main.addLayout(mode_actions)
         self._apply_table_styles()
         main.addWidget(self.table, 1)
         main.addWidget(self.status_label)
@@ -499,6 +503,7 @@ class TrimsDistillationDetailsWindow(QDialog):
         self.btnFinalize.clicked.connect(self._finalize_batch)
         self.btnPrintLabels.clicked.connect(lambda: self._open_print_dialog("Label"))
         self.btnPrintReport.clicked.connect(lambda: self._open_print_dialog("Report"))
+        self.btnClose.clicked.connect(self.reject)
 
     def _open_print_dialog(self, mode):
         if mode == "Label":

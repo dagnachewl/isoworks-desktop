@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QPushButton, QFileDialog, QMessageBox,
     QApplication, QComboBox, QDoubleSpinBox, QProgressDialog, QCheckBox,
     QDialog, QScrollArea, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-    QDateTimeEdit,
+    QDateTimeEdit, QGraphicsDropShadowEffect,
 )
 from PyQt5.QtCore import Qt, QTimer, QDateTime
 from PyQt5.QtGui import QColor
@@ -30,29 +30,45 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Style constants
 # ---------------------------------------------------------------------------
-_BTN_BROWSE = (
-    "QPushButton { background: #546E7A; color: white; font-weight: bold;"
-    "  border: none; padding: 5px 12px; border-radius: 4px; }"
-    "QPushButton:hover { background: #37474F; }"
-)
-_BTN_PROCESS = (
-    "QPushButton { background: #E65100; color: white; font-weight: bold;"
-    "  border: none; padding: 5px 14px; border-radius: 4px; }"
-    "QPushButton:hover { background: #BF360C; }"
-    "QPushButton:disabled { background: #B0BEC5; color: #78909C; }"
-)
-_BTN_IMPORT = (
-    "QPushButton { background: #2E7D32; color: white; font-weight: bold;"
-    "  border: none; padding: 5px 14px; border-radius: 4px; }"
-    "QPushButton:hover { background: #1B5E20; }"
-    "QPushButton:disabled { background: #B0BEC5; color: #78909C; }"
+# Shared "glass" style for the 5 command buttons (Browse, Clear, Process,
+# Import, Close) -- one uniform cool-blue tint instead of the old per-action
+# colors, translucent gradient + light border to read as frosted glass.
+_BTN_GLASS = (
+    "QPushButton {"
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "    stop:0 rgba(120, 190, 255, 190), stop:0.5 rgba(66, 165, 245, 205), stop:1 rgba(25, 118, 210, 215));"
+    "  color: white; font-weight: 600;"
+    "  border: 1px solid rgba(255, 255, 255, 130);"
+    "  border-radius: 8px;"
+    "  padding: 6px 16px;"
+    "}"
+    "QPushButton:hover {"
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "    stop:0 rgba(165, 217, 255, 220), stop:0.5 rgba(93, 188, 255, 230), stop:1 rgba(35, 140, 235, 235));"
+    "  border: 1px solid rgba(255, 255, 255, 200);"
+    "}"
+    "QPushButton:pressed {"
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "    stop:0 rgba(20, 90, 170, 230), stop:1 rgba(10, 60, 130, 230));"
+    "  border: 1px solid rgba(255, 255, 255, 90);"
+    "}"
+    "QPushButton:disabled {"
+    "  background: rgba(176, 190, 197, 110);"
+    "  color: rgba(255, 255, 255, 140);"
+    "  border: 1px solid rgba(255, 255, 255, 60);"
+    "}"
 )
 
-_BTN_CLEAR = (
-    "QPushButton { background: #C62828; color: white; font-weight: bold;"
-    "  border: none; padding: 5px 14px; border-radius: 4px; }"
-    "QPushButton:hover { background: #B71C1C; }"
-)
+
+def _apply_glass_glow(btn: QPushButton) -> None:
+    """Soft cool-blue glow behind a glass button -- QSS alone can't do
+    box-shadow-style glows in Qt, so this is a QGraphicsDropShadowEffect
+    companion to _BTN_GLASS."""
+    glow = QGraphicsDropShadowEffect(btn)
+    glow.setBlurRadius(18)
+    glow.setOffset(0, 2)
+    glow.setColor(QColor(66, 165, 245, 160))
+    btn.setGraphicsEffect(glow)
 
 _IDMS_DLG_SS = """
     QDialog { background: #FAFBFC; }
@@ -831,12 +847,14 @@ class ImportFromProtocolWidget(QWidget):
         row1.setSpacing(6)
 
         self._btn_browse = QPushButton("Browse .protocol…")
-        self._btn_browse.setStyleSheet(_BTN_BROWSE)
+        self._btn_browse.setStyleSheet(_BTN_GLASS)
+        _apply_glass_glow(self._btn_browse)
         self._btn_browse.clicked.connect(self._browse)
         row1.addWidget(self._btn_browse)
 
         self._btn_clear = QPushButton("Clear")
-        self._btn_clear.setStyleSheet(_BTN_CLEAR)
+        self._btn_clear.setStyleSheet(_BTN_GLASS)
+        _apply_glass_glow(self._btn_clear)
         self._btn_clear.setToolTip("Clear the parsed sequence and reset model/views")
         self._btn_clear.clicked.connect(self._on_clear_clicked)
         self._btn_clear.setVisible(False)
@@ -845,26 +863,24 @@ class ImportFromProtocolWidget(QWidget):
         row1.addStretch(1)
 
         self._btn_process = QPushButton("Process Data")
-        self._btn_process.setStyleSheet(_BTN_PROCESS)
+        self._btn_process.setStyleSheet(_BTN_GLASS)
+        _apply_glass_glow(self._btn_process)
         self._btn_process.setEnabled(False)
         self._btn_process.clicked.connect(self._do_process)
         row1.addWidget(self._btn_process)
 
         self._btn_import = QPushButton("Import to DB")
-        self._btn_import.setStyleSheet(_BTN_IMPORT)
+        self._btn_import.setStyleSheet(_BTN_GLASS)
+        _apply_glass_glow(self._btn_import)
         self._btn_import.setEnabled(False)
         self._btn_import.clicked.connect(self._do_import)
         row1.addWidget(self._btn_import)
 
         row1.addWidget(make_help_button(self, "ngam_ng_import"))
 
-        _BTN_CLOSE = (
-            "QPushButton { background: #546E7A; color: white; font-weight: bold;"
-            "  border: none; padding: 5px 14px; border-radius: 4px; }"
-            "QPushButton:hover { background: #37474F; }"
-        )
         btn_close = QPushButton("Close")
-        btn_close.setStyleSheet(_BTN_CLOSE)
+        btn_close.setStyleSheet(_BTN_GLASS)
+        _apply_glass_glow(btn_close)
         btn_close.setToolTip("Close this dialog")
         btn_close.clicked.connect(self._on_close_clicked)
         row1.addWidget(btn_close)
@@ -1162,7 +1178,7 @@ class ImportFromProtocolWidget(QWidget):
         # Reset the Browse button text, tooltip, and style
         self._btn_browse.setText("Browse .protocol…")
         self._btn_browse.setToolTip("")
-        self._btn_browse.setStyleSheet(_BTN_BROWSE)
+        self._btn_browse.setStyleSheet(_BTN_GLASS)
         
         # Reconnect clicked to _browse
         try:
@@ -1313,7 +1329,15 @@ class ImportFromProtocolWidget(QWidget):
                                           repro_references=self.model.repro_references,
                                           multi_run_linearity=self.model.multi_run_linearity,
                                           aliquot_volumes=self.model.aliquot_volumes,
-                                          fit_model_overrides=self.model.fit_model_overrides)
+                                          fit_model_overrides=self.model.fit_model_overrides,
+                                          excluded_standards=self.model.excluded_standards,
+                                          excluded_blanks=self.model.excluded_blanks,
+                                          force_included_standards=self.model.force_included_standards,
+                                          force_included_blanks=self.model.force_included_blanks,
+                                          blank_fit_overrides=self.model.blank_fit_overrides,
+                                          drift_fit_overrides=self.model.drift_fit_overrides,
+                                          linearity_fit_overrides=self.model.linearity_fit_overrides,
+                                          unc_trace=self.model.unc_trace)
             try:
                 self._results_widget.result_changed.disconnect()
                 self._results_widget.outliers_reset.disconnect()
@@ -1336,7 +1360,18 @@ class ImportFromProtocolWidget(QWidget):
             msg += " Reprocessed with custom fit model overrides."
         else:
             msg += " Toggle checkboxes in the Signals tab to override."
-        self._flash_status(msg)
+
+        # Surface calibration/signal-collapse warnings from the pipeline
+        # (e.g. missing certified values, cycles dropped instantaneously)
+        # instead of silently discarding them -- these indicate the result
+        # may need review, not just informational status.
+        warnings = list(getattr(result, "calibration_warnings", []) or []) + \
+            list(getattr(result, "signal_collapse_warnings", []) or [])
+        if warnings:
+            msg += "  ⚠ " + "; ".join(warnings)
+            self._flash_status(msg, is_success=False)
+        else:
+            self._flash_status(msg)
 
     def _on_processing_failed(self, error_msg: str) -> None:
         QMessageBox.critical(self, "Processing Error", f"Failed:\n{error_msg}")
@@ -1344,6 +1379,17 @@ class ImportFromProtocolWidget(QWidget):
 
     def _on_result_changed(self, new_result) -> None:
         self.model.result = new_result
+        # Sync interactive right-click/combo edits made in the results widget
+        # back into the model, so a later explicit "Process Data" (which
+        # rebuilds from self.model.*) doesn't silently discard them.
+        rw = self._results_widget
+        self.model.excluded_standards = dict(getattr(rw, "_excluded_standards", {}) or {})
+        self.model.excluded_blanks = dict(getattr(rw, "_excluded_blanks", {}) or {})
+        self.model.force_included_standards = dict(getattr(rw, "_force_included_standards", {}) or {})
+        self.model.force_included_blanks = dict(getattr(rw, "_force_included_blanks", {}) or {})
+        self.model.blank_fit_overrides = dict(getattr(rw, "_blank_fit_overrides", {}) or {})
+        self.model.drift_fit_overrides = dict(getattr(rw, "_drift_fit_overrides", {}) or {})
+        self.model.linearity_fit_overrides = dict(getattr(rw, "_linearity_fit_overrides", {}) or {})
         total = sum(
             bf.n_outliers
             for ir in new_result.inlets

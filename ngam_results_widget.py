@@ -29,7 +29,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QSplitter, QTabWidget, QSizePolicy,
-    QLabel, QComboBox, QApplication, QDoubleSpinBox,
+    QLabel, QComboBox, QApplication, QDoubleSpinBox, QCheckBox,
     QTreeWidget, QTreeWidgetItem, QTextBrowser, QShortcut,
     QMenu, QAction,
 )
@@ -45,7 +45,7 @@ from ngam_protocol_processor import (
     process_sequence, ProcessingConfig,
     SequenceProcessingResult, InletProcessingResult,
     DriftFit, BlankFit, LinearityFit,
-    _is_background, _polyval,
+    _is_background, _polyval, parse_unc_trace_lines,
 )
 from ngam_gauge_processor import (
     GaugeSequenceSummary, InletGaugeSummary, ChannelSummary, ChannelFit,
@@ -302,8 +302,17 @@ class NGAMResultsWidget(QWidget):
         self._sms_loaded_path: Optional[str] = None   # avoid reload for same file
         # User manual fit model overrides: {seq_num: {isotope_key: model_name}}
         self._fit_model_overrides: Dict[int, Dict[str, str]] = {}
-        # Standard inlet exclusions: {seq_num: None (all iso) | set of iso_keys}
+        # Standard/blank inlet exclusions: {seq_num: None (all iso) | set of iso_keys}
         self._excluded_standards: Dict[int, Optional[Set[str]]] = {}
+        self._excluded_blanks: Dict[int, Optional[Set[str]]] = {}
+        # Force-included (un-rejected) standard/blank inlets, same shape
+        self._force_included_standards: Dict[int, Optional[Set[str]]] = {}
+        self._force_included_blanks: Dict[int, Optional[Set[str]]] = {}
+        # Per-species calibration fit-type overrides: {"Device:Isotope": model_name}
+        self._blank_fit_overrides: Dict[str, str] = {}
+        self._drift_fit_overrides: Dict[str, str] = {}
+        self._linearity_fit_overrides: Dict[str, str] = {}
+        self._unc_trace: List[str] = []
         # Per-inlet dilution factors: {seq_num: float}.  User-editable via tree.
         self._dilution_factors: Dict[int, float] = {}
         # Detached popup windows for raw fit viewers
@@ -327,6 +336,13 @@ class NGAMResultsWidget(QWidget):
         self._flag_overrides = {}
         self._fit_model_overrides = {}
         self._excluded_standards = {}
+        self._excluded_blanks = {}
+        self._force_included_standards = {}
+        self._force_included_blanks = {}
+        self._blank_fit_overrides = {}
+        self._drift_fit_overrides = {}
+        self._linearity_fit_overrides = {}
+        self._unc_trace = []
         self._dilution_factors = {}
         self.can_reset_changed.emit(False)
         self._iso_row_w.setVisible(False)
@@ -354,6 +370,13 @@ class NGAMResultsWidget(QWidget):
         self._flag_overrides = {}
         self._fit_model_overrides = {}
         self._excluded_standards = {}
+        self._excluded_blanks = {}
+        self._force_included_standards = {}
+        self._force_included_blanks = {}
+        self._blank_fit_overrides = {}
+        self._drift_fit_overrides = {}
+        self._linearity_fit_overrides = {}
+        self._unc_trace = []
         self._dilution_factors = {}
         self._repro_references = None
         self._multi_run_linearity = None
@@ -386,6 +409,8 @@ class NGAMResultsWidget(QWidget):
             except Exception:
                 pass
         self._inlet_tree.clear()
+        self._unc_tree.clear()
+        self._lbl_unc_empty.setVisible(False)
         self._set_hub_btn_states(parsed=False, processed=False)
 
     def set_data(
@@ -397,14 +422,31 @@ class NGAMResultsWidget(QWidget):
         multi_run_linearity: Optional[List] = None,
         aliquot_volumes: Optional[Dict[int, float]] = None,
         fit_model_overrides: Optional[Dict[int, Dict[str, str]]] = None,
+        excluded_standards: Optional[Dict[int, Optional[Set[str]]]] = None,
+        excluded_blanks: Optional[Dict[int, Optional[Set[str]]]] = None,
+        force_included_standards: Optional[Dict[int, Optional[Set[str]]]] = None,
+        force_included_blanks: Optional[Dict[int, Optional[Set[str]]]] = None,
+        blank_fit_overrides: Optional[Dict[str, str]] = None,
+        drift_fit_overrides: Optional[Dict[str, str]] = None,
+        linearity_fit_overrides: Optional[Dict[str, str]] = None,
+        unc_trace: Optional[List[str]] = None,
     ) -> None:
-        """Load a new sequence result.  Resets all user overrides."""
+        """Load a new sequence result.  Seeds user overrides from the caller
+        (e.g. the viewmodel's DB-seeded + session state), rather than always
+        resetting to empty, so overrides set before a reprocess survive it."""
         self._seq = seq
         self._result = result
         self._config = config or ProcessingConfig()
         self._flag_overrides = {}
         self._fit_model_overrides = fit_model_overrides or {}
-        self._excluded_standards = {}
+        self._excluded_standards = excluded_standards or {}
+        self._excluded_blanks = excluded_blanks or {}
+        self._force_included_standards = force_included_standards or {}
+        self._force_included_blanks = force_included_blanks or {}
+        self._blank_fit_overrides = blank_fit_overrides or {}
+        self._drift_fit_overrides = drift_fit_overrides or {}
+        self._linearity_fit_overrides = linearity_fit_overrides or {}
+        self._unc_trace = unc_trace or []
         self._repro_references = repro_references
         self._multi_run_linearity = multi_run_linearity
         self._aliquot_volumes = aliquot_volumes
@@ -414,6 +456,7 @@ class NGAMResultsWidget(QWidget):
         self._populate_qc_tab()
         self._populate_gauge_tab()
         self._populate_sequence_tabs()
+        self._populate_unc_prop_tab()
         self._iso_row_w.setVisible(True)
         self._select_first_leaf()
 
@@ -545,6 +588,50 @@ class NGAMResultsWidget(QWidget):
         self._btn_iso_next.setToolTip("Next isotope")
         self._btn_iso_next.clicked.connect(self._iso_next)
         iso_lay.addWidget(self._btn_iso_next)
+
+        # Per-isotope calibration fit-type overrides -- distinct from the
+        # sequence-wide Blank/Drift/Linearity combos in the toolbar above
+        # (which set the default for every isotope): these override just the
+        # currently-selected isotope's fit, same precedence as web's
+        # blankFitOverrides/driftFitOverrides/linearityFitOverrides.
+        iso_lay.addSpacing(12)
+        iso_lay.addWidget(QLabel("Blank ovr:"))
+        self._combo_blank_override = QComboBox()
+        self._combo_blank_override.addItem("(default)", None)
+        for label, val in [("Auto (AICc)", "auto"), ("Mean", "mean"), ("Akima", "akima"),
+                            ("Linear", "linear"), ("Quadratic", "quadratic"), ("Cubic", "cubic")]:
+            self._combo_blank_override.addItem(label, val)
+        self._combo_blank_override.setFixedWidth(100)
+        self._combo_blank_override.currentIndexChanged.connect(
+            lambda: self._on_fit_override_changed(self._blank_fit_overrides, self._combo_blank_override)
+        )
+        iso_lay.addWidget(self._combo_blank_override)
+
+        iso_lay.addWidget(QLabel("Drift ovr:"))
+        self._combo_drift_override = QComboBox()
+        self._combo_drift_override.addItem("(default)", None)
+        for label, val in [("Auto (AICc)", "auto"), ("None", "none"), ("Akima", "akima"),
+                            ("Linear", "linear"), ("Quadratic", "quadratic"), ("Cubic", "cubic"),
+                            ("Exponential", "exponential")]:
+            self._combo_drift_override.addItem(label, val)
+        self._combo_drift_override.setFixedWidth(100)
+        self._combo_drift_override.currentIndexChanged.connect(
+            lambda: self._on_fit_override_changed(self._drift_fit_overrides, self._combo_drift_override)
+        )
+        iso_lay.addWidget(self._combo_drift_override)
+
+        iso_lay.addWidget(QLabel("Lin ovr:"))
+        self._combo_linearity_override = QComboBox()
+        self._combo_linearity_override.addItem("(default)", None)
+        for label, val in [("Auto (AICc)", "auto"), ("None", "none"),
+                            ("Linear", "linear"), ("Quadratic", "quadratic")]:
+            self._combo_linearity_override.addItem(label, val)
+        self._combo_linearity_override.setFixedWidth(100)
+        self._combo_linearity_override.currentIndexChanged.connect(
+            lambda: self._on_fit_override_changed(self._linearity_fit_overrides, self._combo_linearity_override)
+        )
+        iso_lay.addWidget(self._combo_linearity_override)
+
         iso_lay.addStretch(1)
         self._iso_row_w.setVisible(False)
         chart_top_lay.addWidget(self._iso_row_w)
@@ -625,7 +712,24 @@ class NGAMResultsWidget(QWidget):
         self._qc_fig = Figure(figsize=(6, 3), tight_layout=True)
         self._qc_canvas = FigureCanvas(self._qc_fig)
         self._qc_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._chart_tabs.addTab(self._qc_canvas, "QC Chart")
+
+        _qc_tab_w = QWidget()
+        _qc_tab_lay = QVBoxLayout(_qc_tab_w)
+        _qc_tab_lay.setContentsMargins(0, 0, 0, 0)
+        _qc_tab_lay.setSpacing(0)
+        _qc_toolbar = QHBoxLayout()
+        _qc_toolbar.setContentsMargins(8, 4, 8, 4)
+        _qc_toolbar.addWidget(QLabel("View:"))
+        self._combo_qc_mode = QComboBox()
+        self._combo_qc_mode.addItem("Standard Reproducibility", "repro")
+        self._combo_qc_mode.addItem("Blank-Corrected Signal vs ccSTP", "blank_vs_cc")
+        self._combo_qc_mode.addItem("Drift+Linearity Signal vs ccSTP", "drift_lin_vs_cc")
+        self._combo_qc_mode.currentIndexChanged.connect(self._draw_qc_chart)
+        _qc_toolbar.addWidget(self._combo_qc_mode)
+        _qc_toolbar.addStretch()
+        _qc_tab_lay.addLayout(_qc_toolbar)
+        _qc_tab_lay.addWidget(self._qc_canvas)
+        self._chart_tabs.addTab(_qc_tab_w, "QC Chart")
 
         # Gauge Signal — full-sequence SRG / Total Pressure time-series + fits
         self._srg_fig = Figure(figsize=(8, 3), tight_layout=True)
@@ -804,7 +908,59 @@ class NGAMResultsWidget(QWidget):
                     _c, QHeaderView.ResizeToContents
                 )
         self._gauge_tbl.verticalHeader().setVisible(False)
-        self._data_tabs.addTab(self._gauge_tbl, "Gauge")
+
+        _gauge_tab_w = QWidget()
+        _gauge_tab_lay = QVBoxLayout(_gauge_tab_w)
+        _gauge_tab_lay.setContentsMargins(0, 0, 0, 0)
+        _gauge_tab_lay.setSpacing(0)
+        _gauge_toolbar = QHBoxLayout()
+        _gauge_toolbar.setContentsMargins(8, 4, 8, 4)
+        self._chk_gauge_samples_only = QCheckBox("Samples only")
+        self._chk_gauge_samples_only.toggled.connect(lambda _: self._populate_gauge_tab())
+        _gauge_toolbar.addWidget(self._chk_gauge_samples_only)
+        self._lbl_gauge_filter_count = QLabel("")
+        self._lbl_gauge_filter_count.setStyleSheet("color:#78909c; font-size:11px;")
+        _gauge_toolbar.addWidget(self._lbl_gauge_filter_count)
+        _gauge_toolbar.addStretch()
+        _gauge_tab_lay.addLayout(_gauge_toolbar)
+        _gauge_tab_lay.addWidget(self._gauge_tbl)
+        self._data_tabs.addTab(_gauge_tab_w, "Gauge")
+
+        # Unc. Prop. tab — per-inlet uncertainty-propagation trace with jump detection
+        _unc_tab_w = QWidget()
+        _unc_tab_lay = QVBoxLayout(_unc_tab_w)
+        _unc_tab_lay.setContentsMargins(0, 0, 0, 0)
+        _unc_tab_lay.setSpacing(0)
+        _unc_toolbar = QHBoxLayout()
+        _unc_toolbar.setContentsMargins(8, 4, 8, 4)
+        _unc_toolbar.addWidget(QLabel("Isotope:"))
+        self._combo_unc_isotope = QComboBox()
+        self._combo_unc_isotope.addItem("All", None)
+        self._combo_unc_isotope.currentIndexChanged.connect(lambda _: self._populate_unc_prop_tab())
+        _unc_toolbar.addWidget(self._combo_unc_isotope)
+        _unc_toolbar.addStretch()
+        _unc_tab_lay.addLayout(_unc_toolbar)
+
+        self._unc_tree = QTreeWidget()
+        self._unc_tree.setColumnCount(6)
+        self._unc_tree.setHeaderLabels(["Stage", "Isotope", "Value", "± Unc", "Rel %", "Jump"])
+        self._unc_tree.setAlternatingRowColors(True)
+        self._unc_tree.setStyleSheet(_TABLE_SS)
+        self._unc_tree.header().setStyleSheet(_HDR_SS)
+        self._unc_tree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self._unc_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        for c in (2, 3, 4, 5):
+            self._unc_tree.header().setSectionResizeMode(c, QHeaderView.Stretch)
+        _unc_tab_lay.addWidget(self._unc_tree)
+        self._lbl_unc_empty = QLabel(
+            "No uncertainty trace available for this run yet. "
+            "It's generated automatically the next time you Process Data."
+        )
+        self._lbl_unc_empty.setStyleSheet("color:#78909c; padding:16px;")
+        self._lbl_unc_empty.setAlignment(Qt.AlignCenter)
+        self._lbl_unc_empty.setVisible(False)
+        _unc_tab_lay.addWidget(self._lbl_unc_empty)
+        self._data_tabs.addTab(_unc_tab_w, "Unc. Prop.")
 
         v_split.addWidget(self._data_tabs)
         v_split.setSizes([380, 220])
@@ -976,6 +1132,36 @@ class NGAMResultsWidget(QWidget):
         tab_text = self._chart_tabs.tabText(self._chart_tabs.currentIndex())
         self._dispatch_seq_chart(tab_text)
         self._apply_isotope_filter()
+        self._sync_fit_override_combos()
+
+    def _sync_fit_override_combos(self) -> None:
+        """Reflect the currently-selected isotope's existing per-species
+        fit overrides in the 3 override combos, without re-triggering a
+        reprocess (blockSignals guard)."""
+        key = self._current_iso_key()
+        for combo, overrides in [
+            (self._combo_blank_override, self._blank_fit_overrides),
+            (self._combo_drift_override, self._drift_fit_overrides),
+            (self._combo_linearity_override, self._linearity_fit_overrides),
+        ]:
+            combo.blockSignals(True)
+            try:
+                val = overrides.get(key) if key else None
+                idx = combo.findData(val)
+                combo.setCurrentIndex(idx if idx >= 0 else 0)
+            finally:
+                combo.blockSignals(False)
+
+    def _on_fit_override_changed(self, overrides: Dict[str, str], combo: QComboBox) -> None:
+        key = self._current_iso_key()
+        if not key:
+            return
+        val = combo.currentData()
+        if val is None:
+            overrides.pop(key, None)
+        else:
+            overrides[key] = val
+        self._rerun_pipeline()
 
     def _apply_isotope_filter(self) -> None:
         """Show/hide rows in Signals, Results, and Final Results tables based on the selected isotope."""
@@ -1537,7 +1723,7 @@ class NGAMResultsWidget(QWidget):
         self._prog_canvas.draw()
 
     def _draw_qc_chart(self) -> None:
-        """% deviation of each standard's sensitivity from the sequence mean."""
+        """Dispatch to the selected QC sub-chart (repro / blank_vs_cc / drift_lin_vs_cc)."""
         fig = self._qc_fig
         fig.clear()
         ax = fig.add_subplot(111)
@@ -1554,7 +1740,19 @@ class NGAMResultsWidget(QWidget):
             ax.set_axis_off()
             self._qc_canvas.draw()
             return
+
+        mode = self._combo_qc_mode.currentData() or "repro"
         pr = self._result
+        if mode == "blank_vs_cc":
+            self._draw_qc_signal_vs_cc(ax, pr, key, use_corrected=False)
+        elif mode == "drift_lin_vs_cc":
+            self._draw_qc_signal_vs_cc(ax, pr, key, use_corrected=True)
+        else:
+            self._draw_qc_repro(ax, pr, key)
+        self._qc_canvas.draw()
+
+    def _draw_qc_repro(self, ax, pr, key: str) -> None:
+        """% deviation of each standard's sensitivity from the sequence mean."""
         df = pr.drift_fits.get(key)
         mean_s = pr.sensitivities.get(key, float("nan"))
 
@@ -1562,7 +1760,6 @@ class NGAMResultsWidget(QWidget):
             ax.text(0.5, 0.5, "No standard data for this isotope",
                     ha="center", va="center", transform=ax.transAxes, color="gray")
             ax.set_axis_off()
-            self._qc_canvas.draw()
             return
 
         supp = self._supp_seq_nums()
@@ -1597,7 +1794,111 @@ class NGAMResultsWidget(QWidget):
             )
         else:
             ax.legend(fontsize=8)
-        self._qc_canvas.draw()
+
+    def _draw_qc_signal_vs_cc(self, ax, pr, key: str, use_corrected: bool) -> None:
+        """
+        Regression diagnostic: signal level (X) vs expected/calculated gas
+        quantity (Y), for standards (expected certified amount) and samples
+        (final calculated ccSTP). A tight linear fit through the origin
+        confirms the calibration/correction chain is behaving.
+
+        use_corrected=False: X = raw blank-corrected signal ("blank_vs_cc").
+        use_corrected=True:  X = drift+linearity-corrected signal
+        ("drift_lin_vs_cc") -- evaluates the drift/linearity fits at each
+        inlet the same way _draw_drift_correction()/_draw_linearity() do,
+        reusing their exact fit coefficients so this stays consistent with
+        those tabs. Deliberately omits web's K4 rescaling constant (a
+        display-only scale factor with no equivalent anywhere in the shared
+        core pipeline, so its provenance can't be verified) -- the
+        regression's R² and linearity are unaffected by a constant x-scale,
+        only the absolute axis numbers differ from web's.
+        """
+        from ngam_protocol_processor import _expval as _proc_expval
+
+        df = pr.drift_fits.get(key) if use_corrected else None
+        lf = pr.linearity_fits.get(key) if use_corrected else None
+
+        # lv_time_start lives on the parsed InletPrep (self._seq.inlets), not
+        # on InletProcessingResult -- cross-reference by seq_num, same as
+        # _draw_drift_correction()/_draw_linearity() do for their own charts.
+        _t_by_seq: Dict[int, float] = {
+            prep.seq_num: prep.lv_time_start for prep in (self._seq.inlets if self._seq else [])
+        }
+
+        std_x, std_y, std_t = [], [], []
+        smp_x, smp_y, smp_t = [], [], []
+
+        for ir in (pr.inlets or []):
+            iso = ir.isotopes.get(key)
+            if iso is None or math.isnan(iso.blank_corrected):
+                continue
+
+            x = iso.blank_corrected
+            if use_corrected:
+                drift_val = 1.0
+                if df is not None and df.coeffs:
+                    t = _t_by_seq.get(ir.seq_num)
+                    if t:
+                        drift_val = (
+                            _proc_expval(df.coeffs, t)
+                            if getattr(df, "fit_type", "") == "exponential"
+                            else _polyval(df.coeffs, t)
+                        )
+                lin_val = 1.0
+                if lf is not None and lf.coeffs and lf.fit_type not in ("none", "mean"):
+                    lin_val = _polyval(lf.coeffs, x)
+                if lin_val:
+                    x = (x * drift_val) / lin_val
+
+            if ir.is_repro_ref or ir.is_lin_ref:
+                amt = ir.reference_amounts.get(key, ir.reference_amount)
+                if amt and amt > 0:
+                    std_x.append(x)
+                    std_y.append(amt)
+                    std_t.append(ir.seq_num)
+            elif ir.inlet_type == "sample":
+                final_v = iso.linearity_ccSTP
+                if math.isnan(final_v):
+                    final_v = iso.drift_ccSTP if not math.isnan(iso.drift_ccSTP) else iso.ccSTP
+                if final_v and final_v > 0:
+                    smp_x.append(x)
+                    smp_y.append(final_v)
+                    smp_t.append(ir.seq_num)
+
+        if not std_x and not smp_x:
+            ax.text(0.5, 0.5, "No standard/sample data for this isotope",
+                    ha="center", va="center", transform=ax.transAxes, color="gray")
+            ax.set_axis_off()
+            return
+
+        if std_x:
+            ax.scatter(std_x, std_y, s=36, color="#EF4444", marker="s", label="Standards", zorder=3)
+        if smp_x:
+            ax.scatter(smp_x, smp_y, s=36, color="#3B82F6", marker="s", label="Samples", zorder=3)
+
+        if len(std_x) >= 2:
+            import numpy as np
+            slope, intercept = np.polyfit(std_x, std_y, 1)
+            all_x = std_x + smp_x
+            x0, x1 = 0.0, max(all_x) * 1.05
+            ax.plot([x0, x1], [slope * x0 + intercept, slope * x1 + intercept],
+                    color="#666", linewidth=1.2, linestyle="-", zorder=2)
+            pred = [slope * x + intercept for x in std_x]
+            ss_res = sum((y - p) ** 2 for y, p in zip(std_y, pred))
+            ss_tot = sum((y - (sum(std_y) / len(std_y))) ** 2 for y in std_y)
+            r2 = 1 - ss_res / ss_tot if ss_tot else float("nan")
+            ax.text(0.05, 0.95,
+                    f"y = {slope:.4e}x {'+' if intercept >= 0 else '-'} {abs(intercept):.4e}\nR² = {r2:.4f}",
+                    transform=ax.transAxes, ha="left", va="top", fontsize=8,
+                    bbox=dict(boxstyle="round", facecolor="#FAFAFA", edgecolor="#CCC"))
+
+        xlabel = "Drift & Linearity Corrected Signal (A)" if use_corrected else "Blank Corrected Signal (A)"
+        ax.set_title(f"QC — {xlabel} vs Gas Quantity — {key}", fontsize=10)
+        ax.set_xlabel(xlabel, fontsize=9)
+        ax.set_ylabel("Gas Quantity (ccSTP)", fontsize=9)
+        ax.ticklabel_format(style="sci", axis="both", scilimits=(0, 0))
+        ax.tick_params(labelsize=8)
+        ax.legend(fontsize=8)
 
     # ------------------------------------------------------------------
     # Popup windows for SMS / QMS raw fit viewers
@@ -2248,9 +2549,11 @@ class NGAMResultsWidget(QWidget):
                     for col in range(5):
                         leaf.setToolTip(col, tip)
 
-                # Visual marking for excluded standard inlets
-                if itype == "standard" and prep.seq_num in self._excluded_standards:
-                    excl_entry = self._excluded_standards[prep.seq_num]
+                # Visual marking for excluded / force-included standard & blank inlets
+                excl_dict = self._excluded_blanks if itype == "blank" else self._excluded_standards
+                force_dict = self._force_included_blanks if itype == "blank" else self._force_included_standards
+                if itype in ("standard", "blank") and prep.seq_num in excl_dict:
+                    excl_entry = excl_dict[prep.seq_num]
                     if excl_entry is None:
                         excl_label = "⊘ excluded (all isotopes)"
                     else:
@@ -2263,6 +2566,17 @@ class NGAMResultsWidget(QWidget):
                         leaf.setFont(col, excl_font)
                     leaf.setToolTip(0, excl_label)
                     leaf.setText(1, f"{name_label}  {excl_label}")
+                elif itype in ("standard", "blank") and prep.seq_num in force_dict:
+                    force_entry = force_dict[prep.seq_num]
+                    if force_entry is None:
+                        force_label = "⚑ forced (all isotopes)"
+                    else:
+                        force_label = f"⚑ forced ({', '.join(sorted(force_entry))})"
+                    force_bg = QColor("#E8F5E9")
+                    for col in range(5):
+                        leaf.setBackground(col, force_bg)
+                    leaf.setToolTip(0, force_label)
+                    leaf.setText(1, f"{name_label}  {force_label}")
 
         tree.blockSignals(False)
 
@@ -2283,7 +2597,8 @@ class NGAMResultsWidget(QWidget):
     # ------------------------------------------------------------------
 
     def _on_inlet_tree_context_menu(self, pos) -> None:
-        """Right-click menu on standard inlet rows for exclusion control."""
+        """Right-click menu on standard/blank inlet rows for exclusion and
+        force-include control."""
         item = self._inlet_tree.itemAt(pos)
         if item is None or not item.parent():
             return  # group header — ignore
@@ -2295,27 +2610,33 @@ class NGAMResultsWidget(QWidget):
 
         # inlet_type lives on InletProcessingResult, not InletPrep
         result_ir = next((ir for ir in self._result.inlets if ir.seq_num == seq_num), None)
-        if result_ir is None or result_ir.inlet_type != "standard":
+        if result_ir is None or result_ir.inlet_type not in ("standard", "blank"):
             return
 
-        is_excl    = seq_num in self._excluded_standards
-        excl_entry = self._excluded_standards.get(seq_num)  # None or set
+        is_blank = result_ir.inlet_type == "blank"
+        excl_dict  = self._excluded_blanks if is_blank else self._excluded_standards
+        force_dict = self._force_included_blanks if is_blank else self._force_included_standards
+        label = "blank" if is_blank else "standard"
 
-        # Available isotope keys for the per-isotope submenu
+        is_excl    = seq_num in excl_dict
+        excl_entry = excl_dict.get(seq_num)  # None or set
+        is_forced  = seq_num in force_dict
+        force_entry = force_dict.get(seq_num)
+
         all_keys: List[str] = sorted(result_ir.isotopes.keys())
 
         menu = QMenu(self)
         if not is_excl:
-            act_all = menu.addAction("⊘  Exclude from all isotopes")
+            act_all = menu.addAction(f"⊘  Exclude from all isotopes")
             act_all.triggered.connect(
-                lambda: self._set_std_exclusion(seq_num, None)
+                lambda: self._set_inlet_exclusion(seq_num, None, is_blank)
             )
             if all_keys:
                 iso_menu = menu.addMenu("⊘  Exclude for isotope…")
                 for k in all_keys:
                     act_iso = iso_menu.addAction(k)
                     act_iso.triggered.connect(
-                        lambda checked, _k=k: self._set_std_exclusion(seq_num, {_k})
+                        lambda checked, _k=k: self._set_inlet_exclusion(seq_num, {_k}, is_blank)
                     )
         else:
             if excl_entry is None:
@@ -2325,18 +2646,54 @@ class NGAMResultsWidget(QWidget):
             menu.addSeparator()
             act_clear = menu.addAction("✓  Remove exclusion")
             act_clear.triggered.connect(
-                lambda: self._clear_std_exclusion(seq_num)
+                lambda: self._clear_inlet_exclusion(seq_num, is_blank)
+            )
+
+        menu.addSeparator()
+        if not is_forced:
+            act_force_all = menu.addAction(f"⚑  Force-include ({label}, un-reject)")
+            act_force_all.triggered.connect(
+                lambda: self._set_inlet_force_include(seq_num, None, is_blank)
+            )
+            if all_keys:
+                force_menu = menu.addMenu("⚑  Force-include for isotope…")
+                for k in all_keys:
+                    act_iso = force_menu.addAction(k)
+                    act_iso.triggered.connect(
+                        lambda checked, _k=k: self._set_inlet_force_include(seq_num, {_k}, is_blank)
+                    )
+        else:
+            if force_entry is None:
+                menu.addAction("(Force-included, all isotopes)").setEnabled(False)
+            else:
+                menu.addAction(f"(Force-included for: {', '.join(sorted(force_entry))})").setEnabled(False)
+            act_clear_force = menu.addAction("✓  Remove force-include")
+            act_clear_force.triggered.connect(
+                lambda: self._clear_inlet_force_include(seq_num, is_blank)
             )
 
         menu.exec_(self._inlet_tree.viewport().mapToGlobal(pos))
 
-    def _set_std_exclusion(self, seq_num: int, iso_keys: Optional[Set[str]]) -> None:
+    def _set_inlet_exclusion(self, seq_num: int, iso_keys: Optional[Set[str]], is_blank: bool) -> None:
         """Exclude seq_num from all isotopes (iso_keys=None) or a subset."""
-        self._excluded_standards[seq_num] = iso_keys
+        d = self._excluded_blanks if is_blank else self._excluded_standards
+        d[seq_num] = iso_keys
         self._rerun_pipeline()
 
-    def _clear_std_exclusion(self, seq_num: int) -> None:
-        self._excluded_standards.pop(seq_num, None)
+    def _clear_inlet_exclusion(self, seq_num: int, is_blank: bool) -> None:
+        d = self._excluded_blanks if is_blank else self._excluded_standards
+        d.pop(seq_num, None)
+        self._rerun_pipeline()
+
+    def _set_inlet_force_include(self, seq_num: int, iso_keys: Optional[Set[str]], is_blank: bool) -> None:
+        """Force-include (un-reject) seq_num for all isotopes or a subset."""
+        d = self._force_included_blanks if is_blank else self._force_included_standards
+        d[seq_num] = iso_keys
+        self._rerun_pipeline()
+
+    def _clear_inlet_force_include(self, seq_num: int, is_blank: bool) -> None:
+        d = self._force_included_blanks if is_blank else self._force_included_standards
+        d.pop(seq_num, None)
         self._rerun_pipeline()
 
     # ------------------------------------------------------------------
@@ -2360,6 +2717,12 @@ class NGAMResultsWidget(QWidget):
             multi_run_linearity=self._multi_run_linearity,
             aliquot_volumes=self._aliquot_volumes,
             excluded_standards=self._excluded_standards or None,
+            excluded_blanks=self._excluded_blanks or None,
+            force_included_standards=self._force_included_standards or None,
+            force_included_blanks=self._force_included_blanks or None,
+            blank_fit_overrides=self._blank_fit_overrides or None,
+            drift_fit_overrides=self._drift_fit_overrides or None,
+            linearity_fit_overrides=self._linearity_fit_overrides or None,
         )
         self._result = new_result
         self._build_inlet_tree(self._seq, inlets=self._seq.inlets, result_inlets=new_result.inlets)
@@ -2906,17 +3269,50 @@ class NGAMResultsWidget(QWidget):
             self._result, "gauge_summary", None
         )
         if gs is None or not gs.inlets:
+            self._lbl_gauge_filter_count.setText("")
             return
 
         available_primary = [c for c in PRIMARY_CHANNELS if c in gs.channels_available]
         available_secondary = [c for c in SECONDARY_CHANNELS if c in gs.channels_available]
         all_avail = available_primary + available_secondary
 
+        # gauge_conc / gauge_conc_per_g live on the main InletProcessingResult
+        # (populated by _compute_gauge_concentrations), not on the gauge-specific
+        # InletGaugeSummary -- cross-reference by seq_num, same pattern used
+        # elsewhere in this file (e.g. the inlet-detail panel).
+        _elements = ["He", "Ne", "Ar"]
+        _conc_by_seq: Dict[int, InletProcessingResult] = {
+            ir.seq_num: ir for ir in (self._result.inlets or [])
+        }
+        has_conc = any(
+            (ir.gauge_conc for ir in _conc_by_seq.values())
+        )
+        has_conc_per_g = any(
+            (ir.gauge_conc_per_g for ir in _conc_by_seq.values())
+        )
+
+        # "Samples only" filter
+        samples_only = self._chk_gauge_samples_only.isChecked()
+        visible_inlets = (
+            [ig for ig in gs.inlets if ig.inlet_type == "sample"]
+            if samples_only else gs.inlets
+        )
+        self._lbl_gauge_filter_count.setText(
+            f"{len(visible_inlets)} of {len(gs.inlets)}" if samples_only else ""
+        )
+
         # ── Summary table ────────────────────────────────────────────────
-        _col_names = ["#", "Inlet", "Type"] + all_avail
+        _conc_cols = _elements if has_conc else []
+        _conc_pg_cols = _elements if has_conc_per_g else []
+        _col_names = (
+            ["#", "Inlet", "Type"]
+            + [f"{el} (ccSTP)" for el in _conc_cols]
+            + [f"{el} (ccSTP/g)" for el in _conc_pg_cols]
+            + all_avail
+        )
         self._gauge_tbl.setColumnCount(len(_col_names))
         self._gauge_tbl.setHorizontalHeaderLabels(_col_names)
-        self._gauge_tbl.setRowCount(len(gs.inlets))
+        self._gauge_tbl.setRowCount(len(visible_inlets))
 
         _type_colors = {
             "blank":    QColor("#E3F2FD"),
@@ -2925,7 +3321,7 @@ class NGAMResultsWidget(QWidget):
         }
         _flag_color = QColor("#FFCCBC")
 
-        for row, ig in enumerate(gs.inlets):
+        for row, ig in enumerate(visible_inlets):
             row_flagged = any(ig.qc_flags.get(ch, False) for ch in PRIMARY_CHANNELS)
             bg = _flag_color if row_flagged else _type_colors.get(ig.inlet_type, QColor("#FFFFFF"))
 
@@ -2938,7 +3334,23 @@ class NGAMResultsWidget(QWidget):
             self._gauge_tbl.setItem(row, 0, _cell(str(ig.seq_num)))
             self._gauge_tbl.setItem(row, 1, _cell(ig.description))
             self._gauge_tbl.setItem(row, 2, _cell(ig.inlet_type))
-            for col_idx, ch in enumerate(all_avail, start=3):
+
+            col_idx = 3
+            ir = _conc_by_seq.get(ig.seq_num)
+            for el in _conc_cols:
+                v = ir.gauge_conc.get(el) if ir else None
+                u = ir.gauge_conc_unc.get(el) if ir else None
+                txt = "—" if v is None else (f"{v:.4g} ± {u:.2g}" if u is not None else f"{v:.4g}")
+                self._gauge_tbl.setItem(row, col_idx, _cell(txt))
+                col_idx += 1
+            for el in _conc_pg_cols:
+                v = ir.gauge_conc_per_g.get(el) if ir else None
+                u = ir.gauge_conc_per_g_unc.get(el) if ir else None
+                txt = "—" if v is None else (f"{v:.4g} ± {u:.2g}" if u is not None else f"{v:.4g}")
+                self._gauge_tbl.setItem(row, col_idx, _cell(txt))
+                col_idx += 1
+
+            for ch in all_avail:
                 cs = ig.channels.get(ch)
                 if cs is None or math.isnan(cs.mean):
                     self._gauge_tbl.setItem(row, col_idx, _cell("—"))
@@ -2949,6 +3361,15 @@ class NGAMResultsWidget(QWidget):
                     if flagged:
                         item.setForeground(QColor("#B71C1C"))
                     self._gauge_tbl.setItem(row, col_idx, item)
+                col_idx += 1
+
+        # Column widths: "Inlet" (col 1) stretches, everything else sizes to
+        # content -- column set is dynamic (conc/per-g columns only appear
+        # when that data exists) so this is re-applied on every populate.
+        self._gauge_tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        for _c in range(len(_col_names)):
+            if _c != 1:
+                self._gauge_tbl.horizontalHeader().setSectionResizeMode(_c, QHeaderView.ResizeToContents)
 
         # ── SRG / Total-Pressure Time Series (GaugeSignal worksheet) ────────
         # Include BaratronInlet (Total Pressure) + SRGHeNe + SRGAr if available
@@ -3045,6 +3466,96 @@ class NGAMResultsWidget(QWidget):
             seed_ig = gs.inlets[0]
         if seed_ig is not None:
             self._draw_inlet_detail(seed_ig, all_avail)
+
+    def _populate_unc_prop_tab(self) -> None:
+        """
+        Per-inlet uncertainty-propagation trace with jump detection: groups
+        the captured [UNC] lines by inlet (rows with no "inletN:" prefix are
+        sequence-level, grouped under "(sequence)"), and flags the largest
+        relative-uncertainty jump between consecutive stages within each
+        group. Mirrors NgamImport.tsx's Unc Prop tab; parse_unc_trace_lines()
+        is the same shared-core helper the web backend's API endpoint uses,
+        so both sides interpret the trace identically.
+        """
+        self._unc_tree.clear()
+
+        rows = parse_unc_trace_lines(self._unc_trace) if self._unc_trace else []
+
+        # Isotope filter combo (rebuild options, preserve selection if still valid)
+        prev_selection = self._combo_unc_isotope.currentData()
+        self._combo_unc_isotope.blockSignals(True)
+        self._combo_unc_isotope.clear()
+        self._combo_unc_isotope.addItem("All", None)
+        for iso in sorted({r["isotope_key"] for r in rows}):
+            self._combo_unc_isotope.addItem(iso, iso)
+        idx = self._combo_unc_isotope.findData(prev_selection)
+        self._combo_unc_isotope.setCurrentIndex(idx if idx >= 0 else 0)
+        self._combo_unc_isotope.blockSignals(False)
+
+        iso_filter = self._combo_unc_isotope.currentData()
+        if iso_filter:
+            rows = [r for r in rows if r["isotope_key"] == iso_filter]
+
+        if not rows:
+            self._unc_tree.setVisible(False)
+            self._lbl_unc_empty.setVisible(True)
+            return
+        self._unc_tree.setVisible(True)
+        self._lbl_unc_empty.setVisible(False)
+
+        by_inlet: Dict[str, list] = {}
+        for r in rows:
+            by_inlet.setdefault(r["inlet"] or "(sequence)", []).append(r)
+
+        def _sort_key(k: str):
+            return (1, 0) if k == "(sequence)" else (0, int(k))
+
+        _jump_color = QColor("#F59E0B")
+        _dim_color = QColor("#78909C")
+
+        for inlet_key in sorted(by_inlet.keys(), key=_sort_key):
+            group_rows = by_inlet[inlet_key]
+            grp_label = "Sequence-level" if inlet_key == "(sequence)" else f"Inlet {inlet_key}"
+            grp_item = QTreeWidgetItem(self._unc_tree)
+            grp_item.setText(0, grp_label)
+            grp_item.setExpanded(True)
+            font = grp_item.font(0)
+            font.setBold(True)
+            grp_item.setFont(0, font)
+            grp_item.setFlags(Qt.ItemIsEnabled)
+
+            prev_rel = None
+            max_jump = None
+            for r in group_rows:
+                jump = (r["rel"] - prev_rel) if prev_rel is not None else None
+                if jump is not None and (max_jump is None or jump > max_jump):
+                    max_jump = jump
+                prev_rel = r["rel"]
+
+                leaf = QTreeWidgetItem(grp_item)
+                leaf.setText(0, r["stage"])
+                leaf.setText(1, r["isotope_key"])
+                leaf.setText(2, f"{r['value']:.6g}")
+                leaf.setText(3, f"{r['unc']:.6g}")
+                leaf.setText(4, f"{r['rel']:.2f}%")
+                leaf.setText(5, f"{jump:+.2f}" if jump is not None else "—")
+                for c in (2, 3, 4, 5):
+                    leaf.setTextAlignment(c, Qt.AlignRight | Qt.AlignVCenter)
+                leaf.setForeground(1, _dim_color)
+                if jump is not None and jump > 1.0:
+                    leaf.setForeground(5, _jump_color)
+                    font5 = leaf.font(5)
+                    font5.setBold(True)
+                    leaf.setFont(5, font5)
+                else:
+                    leaf.setForeground(5, _dim_color)
+
+            if max_jump is not None:
+                note = QTreeWidgetItem(grp_item)
+                note.setText(0, f"Biggest jump: {max_jump:+.2f} pts")
+                note.setFirstColumnSpanned(True)
+                note.setForeground(0, _jump_color)
+                note.setFlags(Qt.ItemIsEnabled)
 
     def _refresh_gauge_inlet(self, seq_num: int) -> None:
         gs: Optional[GaugeSequenceSummary] = getattr(

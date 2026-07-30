@@ -9,12 +9,26 @@ from ngam_processor.models.ngam_model import NGAMModel
 from ngam_processor.database import ngam_repository
 
 from ngam_protocol_parser import parse_protocol, merge_sequences
-from ngam_protocol_processor import process_sequence
+from ngam_protocol_processor import process_sequence, capture_unc_trace
 from ngam_reference_lookup import enrich_sequence_with_reference_amounts
 from shared_utils import get_current_user_id, normalize_login_name
 from db_core import db_manager
 
+_UNC_LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "logs", "ngam_unc")
+
 log = logging.getLogger(__name__)
+
+
+def _merge_seq_dict(db_base: Optional[dict], session_overlay: Optional[dict]) -> Optional[dict]:
+    """Shallow-merge a DB-seeded {seq_num: ...} dict with the current
+    session's own overrides -- session entries replace the DB entry for
+    that seq_num entirely, any seq_num only present in the DB base passes
+    through unchanged. Mirrors the web backend's identically-named helper
+    (backend/app/api/ngam.py)."""
+    merged = dict(db_base) if db_base else {}
+    if session_overlay:
+        merged.update(session_overlay)
+    return merged or None
 
 
 class NGAMViewModel(QObject):
@@ -101,6 +115,8 @@ class NGAMViewModel(QObject):
                 seq = self.model.sequence
 
             # Query and cache database calibration states if targeted
+            db_outlier_overrides: dict = {}
+            db_fit_overrides: dict = {}
             if self.model.target_run_id:
                 self.model.repro_references, _ = ngam_repository.build_repro_references(self.model.target_run_id)
                 self.model.multi_run_linearity = (
@@ -113,6 +129,13 @@ class NGAMViewModel(QObject):
                     self.model.config.compute_activity = True
                 self.model.extraction_info = ngam_repository.build_extraction_info(self.model.target_run_id)
                 self.model.config.db_dilution_factors = ngam_repository.build_dilution_info(self.model.target_run_id)
+
+                # Previously-saved outlier/exclusion/fit-override picks as a
+                # base, this session's own toggles on top -- so reopening a
+                # saved run reproduces the same fits instead of re-flagging
+                # everything by hand. Mirrors backend/app/api/ngam.py.
+                db_outlier_overrides = ngam_repository.build_db_outlier_overrides(self.model.target_run_id)
+                db_fit_overrides = ngam_repository.build_db_fit_overrides(self.model.target_run_id)
 
             # Merge dilution factors from model into config
             if self.model.dilution_factors:
@@ -141,19 +164,49 @@ class NGAMViewModel(QObject):
             with db_manager.get_connection() as conn:
                 enrich_sequence_with_reference_amounts(seq, conn, run_id=self.model.target_run_id)
 
-            # Core processing pipeline call
-            result = process_sequence(
-                seq,
-                sequence_id=self.model.target_run_id,
-                config=self.model.config,
-                flag_overrides=self.model.flag_overrides,
-                fit_model_overrides=self.model.fit_model_overrides,
-                repro_references=self.model.repro_references,
-                multi_run_linearity=self.model.multi_run_linearity,
-                aliquot_volumes=self.model.aliquot_volumes,
-                extraction_info=self.model.extraction_info,
-                excluded_standards=self.model.excluded_standards or None,
+            # Merge DB-seeded overrides (base) with this session's own edits (overlay)
+            merged_flag_overrides = _merge_seq_dict(db_outlier_overrides.get("flag_overrides"), self.model.flag_overrides)
+            merged_excluded_standards = _merge_seq_dict(db_outlier_overrides.get("excluded_standards"), self.model.excluded_standards)
+            merged_excluded_blanks = _merge_seq_dict(db_outlier_overrides.get("excluded_blanks"), self.model.excluded_blanks)
+            merged_force_included_standards = _merge_seq_dict(db_outlier_overrides.get("force_included_standards"), self.model.force_included_standards)
+            merged_force_included_blanks = _merge_seq_dict(db_outlier_overrides.get("force_included_blanks"), self.model.force_included_blanks)
+
+            merged_fit_model_overrides = _merge_seq_dict(db_fit_overrides.get("fit_model_overrides"), self.model.fit_model_overrides)
+            merged_blank_fit_overrides = _merge_seq_dict(db_fit_overrides.get("blank_fit_overrides"), self.model.blank_fit_overrides)
+            merged_drift_fit_overrides = _merge_seq_dict(db_fit_overrides.get("drift_fit_overrides"), self.model.drift_fit_overrides)
+            merged_linearity_fit_overrides = _merge_seq_dict(db_fit_overrides.get("linearity_fit_overrides"), self.model.linearity_fit_overrides)
+
+            # Core processing pipeline call. Uncertainty trace is captured
+            # here too (matches backend/app/api/ngam.py's pattern) so it's
+            # available to review right after Process, not just after
+            # Import -- named by run_id when reprocessing an existing run
+            # (so repeated Process/Import calls overwrite the same file with
+            # the latest version), falling back to the protocol path for a
+            # brand-new sequence that has no run_id yet.
+            unc_log_name = (
+                f"seq_{self.model.target_run_id}.log" if self.model.target_run_id
+                else f"parse_{os.path.basename(seq.protocol_path)}.log"
             )
+            with capture_unc_trace(os.path.join(_UNC_LOG_DIR, unc_log_name)) as unc_trace:
+                result = process_sequence(
+                    seq,
+                    sequence_id=self.model.target_run_id,
+                    config=self.model.config,
+                    flag_overrides=merged_flag_overrides,
+                    fit_model_overrides=merged_fit_model_overrides,
+                    repro_references=self.model.repro_references,
+                    multi_run_linearity=self.model.multi_run_linearity,
+                    aliquot_volumes=self.model.aliquot_volumes,
+                    extraction_info=self.model.extraction_info,
+                    excluded_standards=merged_excluded_standards,
+                    excluded_blanks=merged_excluded_blanks,
+                    force_included_standards=merged_force_included_standards,
+                    force_included_blanks=merged_force_included_blanks,
+                    blank_fit_overrides=merged_blank_fit_overrides,
+                    drift_fit_overrides=merged_drift_fit_overrides,
+                    linearity_fit_overrides=merged_linearity_fit_overrides,
+                )
+            self.model.unc_trace = list(unc_trace)
             self.model.result = result
 
             # Save linearity snapshots
@@ -199,6 +252,27 @@ class NGAMViewModel(QObject):
                 progress_callback=_progress,
                 user_stamp=user_stamp,
             )
+
+            # Persist per-point outlier flags and the resolved signal fit so
+            # reopening this run restores the same picks instead of starting
+            # auto-detection fresh (see process_data()'s DB-seeded read-back).
+            # Independently guarded: a failure here shouldn't fail the import
+            # itself, since the sequence data is already safely committed.
+            if self.model.result is not None:
+                try:
+                    with db_manager.get_connection() as conn:
+                        ngam_repository.save_block_signal_flags(seq_id, self.model.result, conn)
+                        conn.commit()
+                except Exception as e:
+                    log.warning(f"save_block_signal_flags failed for run {seq_id}: {e}")
+
+                try:
+                    with db_manager.get_connection() as conn:
+                        ngam_repository.save_signal_fit_detail(seq_id, self.model.result, conn)
+                        conn.commit()
+                except Exception as e:
+                    log.warning(f"save_signal_fit_detail failed for run {seq_id}: {e}")
+
             self.importFinished.emit(seq_id)
         except Exception as e:
             log.exception("Database import failed.")

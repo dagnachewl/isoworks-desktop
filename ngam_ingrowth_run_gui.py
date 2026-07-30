@@ -34,17 +34,18 @@ from PyQt5.QtWidgets import (
     QGroupBox, QLabel, QLineEdit, QTextEdit, QDateTimeEdit, QComboBox,
     QPushButton, QTableView, QHeaderView, QStyledItemDelegate,
     QAbstractItemView, QAbstractItemDelegate, QMessageBox, QCheckBox,
-    QStyle, QFrame,
+    QStyle, QFrame, QWidget,
 )
 from PyQt5.QtCore import Qt, QEvent, QTimer, QDateTime, QRect, QSize
 from PyQt5.QtGui import (
     QStandardItemModel, QStandardItem, QColor, QBrush, QDoubleValidator
 )
+from sample_label_gui import SampleLabelDialog, analysis_spec
 
-from db_core import db_manager
 from sqlalchemy import text
 from shared_utils import check_employee_privilege, set_status, normalize_login_name, get_current_user_id
 from gui_utils import show_message
+from balance_serial import BalanceSerialReader, load_balance_equipment, list_available_ports
 
 
 # ─────────────────────────────── column constants ────────────────────────────
@@ -82,6 +83,10 @@ class C:
     ]
 
     READ_ONLY = {POS, AID, SAMPLE, WATER_BEF, WATER_AFT, LOSS, PERIOD}
+
+    # Genuine gravimetric (weight, g) columns, for the balance-link
+    # immediate-commit path. Leak test/degas hours are not weights.
+    BALANCE_TARGET_COLS = {EMPTY, BEFORE, AFTER}
 
 
 # ─────────────────────────────── delegates ───────────────────────────────────
@@ -298,7 +303,30 @@ class NGAMIngrowthRunWindow(QDialog):
         self.dt_delegate  = _DateTimeDelegate(None, active_cols=self._dt_active)
         self.loss_delegate = _LossDelegate()
 
+        # Balance link (RS-232/USB) -- bar only shown while editing. This
+        # window already autosaves per-cell via itemChanged -> _save_row(),
+        # so a balance-injected value just needs to land in the model cell;
+        # the existing autosave does the immediate commit for free.
+        self.cmbBalance = QComboBox()
+        self.cmbBalance.setMinimumWidth(160)
+        self.cmbPort = QComboBox()
+        self.cmbPort.setMinimumWidth(160)
+        self.btnBalanceRefreshPorts = QPushButton("⟳")
+        self.btnBalanceRefreshPorts.setFixedWidth(28)
+        self.btnBalanceRefreshPorts.setToolTip("Refresh serial port list")
+        self.btnBalanceConnect = QPushButton("Connect")
+        self.lblBalanceDot = QLabel("●")
+        self.lblBalanceDot.setStyleSheet("color:#B0BEC5; font-size:14px;")
+        self.lblBalanceReading = QLabel("")
+        self.lblBalanceReading.setStyleSheet("color:#444; font-family:monospace;")
+        self.balance_reader = BalanceSerialReader(self)
+        self.balance_reader.stableReading.connect(self._on_balance_reading)
+        self.balance_reader.statusChanged.connect(self._on_balance_status)
+        self.balance_reader.connectionChanged.connect(self._on_balance_connection_changed)
+
         self._build_ui()
+        for eid, name in load_balance_equipment():
+            self.cmbBalance.addItem(name, eid)
 
         try:
             self._check_privileges()
@@ -318,15 +346,33 @@ class NGAMIngrowthRunWindow(QDialog):
         # top bar
         top = QHBoxLayout()
         self.btnEdit  = QPushButton("Edit"); self.btnEdit.setCheckable(True)
+        self.btnPrintLabels = QPushButton("Print Labels")
         self.btnClose = QPushButton("Close")
         top.addStretch()
         top.addWidget(self.btnEdit)
+        top.addWidget(self.btnPrintLabels)
         top.addWidget(self.btnClose)
         root.addLayout(top)
 
         # header form
         self._build_header_form()
         root.addWidget(self.hdr_group)
+
+        self.balance_bar_w = QWidget()
+        balance_bar = QHBoxLayout(self.balance_bar_w)
+        balance_bar.setContentsMargins(0, 0, 0, 4)
+        balance_bar.addWidget(QLabel("<b>Balance:</b>"))
+        balance_bar.addWidget(self.cmbBalance)
+        balance_bar.addWidget(self.cmbPort)
+        balance_bar.addWidget(self.btnBalanceRefreshPorts)
+        balance_bar.addWidget(self.btnBalanceConnect)
+        balance_bar.addWidget(self.lblBalanceDot)
+        balance_bar.addWidget(self.lblBalanceReading)
+        balance_bar.addStretch(1)
+        self.balance_bar_w.setVisible(False)
+        root.addWidget(self.balance_bar_w)
+        self.btnBalanceRefreshPorts.clicked.connect(self._refresh_balance_ports)
+        self.btnBalanceConnect.clicked.connect(self._toggle_balance_connect)
 
         # detail table
         self.table = QTableView()
@@ -354,10 +400,45 @@ class NGAMIngrowthRunWindow(QDialog):
 
         # ── connections ───────────────────────────────────────────────────────
         self.btnEdit.toggled.connect(self._toggle_edit)
+        self.btnPrintLabels.clicked.connect(self._print_ingrowth_labels)
         self.btnClose.clicked.connect(self.accept)
         self.model.itemChanged.connect(self._on_item_changed)
         self.chkFinished.toggled.connect(self._on_finished_toggled)
         self.dtEnd.dateTimeChanged.connect(self._on_end_date_changed)
+
+    def _print_ingrowth_labels(self):
+        """Fetch samples for this ingrowth run and open the QR label printer."""
+        try:
+            with db_manager.get_connection() as conn:
+                rows = conn.execute(text("""
+                    SELECT d.iposition,
+                           a.prefix, a.sampleid, s.sname,
+                           d.analysisid
+                    FROM   ngam.ng3heingrowthdata d
+                    JOIN   public.analysis a ON a.analysisid = d.analysisid
+                    JOIN   public.sample   s ON s.sampleid   = a.sampleid
+                                             AND s.prefix     = a.prefix
+                    WHERE  d.runid = :r
+                    ORDER  BY d.iposition
+                """), {"r": self.run_id}).fetchall()
+        except Exception as exc:
+            logging.error("Ingrowth label fetch: %s", exc)
+            show_message(self, "Error", str(exc))
+            return
+        if not rows:
+            show_message(self, "No Data", "No samples found for this run.")
+            return
+        specs = [
+            analysis_spec(
+                prefix=r.prefix or "",
+                sample_id=str(r.sampleid),
+                analysis_id=str(r.analysisid),
+                container_num=f"Pos {r.iposition}",
+                job_type="Ingrowth",
+            )
+            for r in rows
+        ]
+        SampleLabelDialog.show_batch(specs, parent=self).exec_()
 
     def _build_header_form(self):
         self.hdr_group = QGroupBox("Run Metadata")
@@ -615,13 +696,74 @@ class NGAMIngrowthRunWindow(QDialog):
             self.btnEdit.setText("Stop Edit")
             self.table.setEditTriggers(QAbstractItemView.AllEditTriggers)
             set_status(self.status_label, "Edit Mode – modify values then Stop Edit to save.", "processing")
+            self._refresh_balance_ports()
+            self.balance_bar_w.setVisible(True)
         else:
             self._save_header()
             self.btnEdit.setText("Edit")
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             set_status(self.status_label, "Read Only", "neutral")
             self._apply_read_only()
+            self.balance_reader.disconnect_port()
+            self.balance_bar_w.setVisible(False)
         self._update_cell_flags()
+
+    # ── balance link (RS-232/USB) ---------------------------------------------
+
+    def _refresh_balance_ports(self):
+        current = self.cmbPort.currentText()
+        self.cmbPort.clear()
+        self.cmbPort.addItems(list_available_ports())
+        idx = self.cmbPort.findText(current)
+        if idx >= 0:
+            self.cmbPort.setCurrentIndex(idx)
+
+    def _toggle_balance_connect(self):
+        if self.balance_reader.connected:
+            self.balance_reader.disconnect_port()
+            return
+        equipment_id = self.cmbBalance.currentData()
+        port_name = self.cmbPort.currentText()
+        if not equipment_id or not port_name:
+            show_message(self, "Balance", "Select a balance and a serial port first.")
+            return
+        self.balance_reader.connect_to(equipment_id, port_name)
+
+    def _on_balance_connection_changed(self, connected: bool):
+        self.btnBalanceConnect.setText("Disconnect" if connected else "Connect")
+        self.lblBalanceDot.setStyleSheet(f"color:{'#43A047' if connected else '#B0BEC5'}; font-size:14px;")
+        self.cmbBalance.setEnabled(not connected)
+        self.cmbPort.setEnabled(not connected)
+        self.btnBalanceRefreshPorts.setEnabled(not connected)
+
+    def _on_balance_status(self, text: str):
+        self.lblBalanceReading.setText(text)
+
+    def _on_balance_reading(self, value: float):
+        """Inject a stable balance reading into the currently-targeted cell
+        and advance to the next row, same column -- mirrors web's
+        injectBalanceValue()/advanceFocus(). Writing via setText() alone
+        triggers the existing itemChanged -> _save_row() autosave, so no
+        separate commit call is needed here."""
+        if not self.is_editing:
+            return
+        idx = self.table.currentIndex()
+        if not idx.isValid() or idx.column() not in C.BALANCE_TARGET_COLS:
+            return
+        row, col = idx.row(), idx.column()
+        if row >= self.model.rowCount():
+            return
+
+        self.model.item(row, col).setText(f"{value:.3f}")
+
+        next_row = (row + 1) % self.model.rowCount()
+        next_idx = self.model.index(next_row, col)
+        self.table.setCurrentIndex(next_idx)
+        self.table.scrollTo(next_idx)
+
+    def closeEvent(self, event):
+        self.balance_reader.disconnect_port()
+        super().closeEvent(event)
 
     def _apply_read_only(self):
         for w in [self.dtStart, self.txtRemarks]:

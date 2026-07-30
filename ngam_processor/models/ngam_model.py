@@ -38,6 +38,18 @@ class NGAMModel:
         self.fit_model_overrides: Dict[int, Dict[str, str]] = {}
         # Standard inlet exclusions: {seq_num: None (all iso) | set of iso_keys}
         self.excluded_standards: Dict[int, Optional[Set[str]]] = {}
+        # Blank inlet exclusions: {seq_num: None (all iso) | set of iso_keys}
+        self.excluded_blanks: Dict[int, Optional[Set[str]]] = {}
+        # Force-included (un-rejected) standard/blank inlets, same shape as the exclusions above
+        self.force_included_standards: Dict[int, Optional[Set[str]]] = {}
+        self.force_included_blanks: Dict[int, Optional[Set[str]]] = {}
+        # Per-species fit-type overrides: {species ("Device:Isotope"): model_name}
+        self.blank_fit_overrides: Dict[str, str] = {}
+        self.drift_fit_overrides: Dict[str, str] = {}
+        self.linearity_fit_overrides: Dict[str, str] = {}
+
+        # Captured [UNC] trace lines from the most recent process_sequence() call
+        self.unc_trace: List[str] = []
 
     def reset(self) -> None:
         """Reset state, keeping target_run_id."""
@@ -54,3 +66,10 @@ class NGAMModel:
         self.flag_overrides = {}
         self.fit_model_overrides = {}
         self.excluded_standards = {}
+        self.excluded_blanks = {}
+        self.force_included_standards = {}
+        self.force_included_blanks = {}
+        self.blank_fit_overrides = {}
+        self.drift_fit_overrides = {}
+        self.linearity_fit_overrides = {}
+        self.unc_trace = []

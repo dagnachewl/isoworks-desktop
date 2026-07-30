@@ -31,12 +31,13 @@ from PyQt5.QtWidgets import (
     QGroupBox, QLabel, QLineEdit, QTextEdit, QDateTimeEdit, QComboBox,
     QPushButton, QTableView, QHeaderView, QStyledItemDelegate,
     QAbstractItemView, QAbstractItemDelegate, QMessageBox, QCheckBox,
-    QStyle, QFrame, QSizePolicy, QToolButton,
+    QStyle, QFrame, QSizePolicy, QToolButton, QWidget,
 )
 from PyQt5.QtCore import Qt, QEvent, QDateTime, QRect, QSize
 from PyQt5.QtGui import (
     QStandardItemModel, QStandardItem, QColor, QBrush, QDoubleValidator, QPainter,
 )
+from sample_label_gui import SampleLabelDialog, analysis_spec
 
 from db_core import db_manager
 from sqlalchemy import text
@@ -46,6 +47,7 @@ from shared_utils import (
 )
 from gui_utils import show_message
 from help_browser import make_help_button
+from balance_serial import BalanceSerialReader, load_balance_equipment, list_available_ports
 
 
 # ─────────────────────────────── column constants ────────────────────────────
@@ -104,6 +106,15 @@ class C:
                SAMPLE_VOL, LAB_PRESS}
     # Datetime columns
     DATETIME = {T_START, T_END}
+
+    # Genuine gravimetric (weight, g) columns -> ngam.ngextractiondata column
+    # name, for the balance-link immediate-commit path. Leak test/temp/
+    # salinity/altitude/efficiency/volume are not weights, excluded.
+    BALANCE_TARGET_COLS = {
+        TUBE_BEF: "fweighttubebefore", TUBE_AFT: "fweighttubeafter",
+        GAS_BEF: "fweightgasbulbbefore", GAS_AFT: "fweightgasbulbafter",
+        WATER_BEF: "fweightwaterbulbbefore", WATER_AFT: "fweightwaterbulbafter",
+    }
 
 
 # ─────────────────────────────── palette ─────────────────────────────────────
@@ -309,7 +320,32 @@ class NGAMExtractionRunWindow(QDialog):
         self._dt_delegate  = _DateTimeDelegate(None, active_cols=self._dt_active)
         self._gas_delegate = _GasNetDelegate()
 
+        # Balance link (RS-232/USB) -- bar only shown while editing. This
+        # window's edit flow only bulk-saves on "Stop Editing" (_save_changes
+        # validates + writes all rows + recomputes run status), so a balance
+        # reading is committed via a separate narrow single-cell UPDATE
+        # instead of re-running that full validate/status pass on every
+        # weigh-in -- the eventual Stop Editing save still runs normally.
+        self.cmbBalance = QComboBox()
+        self.cmbBalance.setMinimumWidth(160)
+        self.cmbPort = QComboBox()
+        self.cmbPort.setMinimumWidth(160)
+        self.btnBalanceRefreshPorts = QPushButton("⟳")
+        self.btnBalanceRefreshPorts.setFixedWidth(28)
+        self.btnBalanceRefreshPorts.setToolTip("Refresh serial port list")
+        self.btnBalanceConnect = QPushButton("Connect")
+        self.lblBalanceDot = QLabel("●")
+        self.lblBalanceDot.setStyleSheet("color:#B0BEC5; font-size:14px;")
+        self.lblBalanceReading = QLabel("")
+        self.lblBalanceReading.setStyleSheet("color:#444; font-family:monospace;")
+        self.balance_reader = BalanceSerialReader(self)
+        self.balance_reader.stableReading.connect(self._on_balance_reading)
+        self.balance_reader.statusChanged.connect(self._on_balance_status)
+        self.balance_reader.connectionChanged.connect(self._on_balance_connection_changed)
+
         self._build_ui()
+        for eid, name in load_balance_equipment():
+            self.cmbBalance.addItem(name, eid)
         try:
             self._check_privileges()
             self._load_run()
@@ -365,6 +401,23 @@ class NGAMExtractionRunWindow(QDialog):
         root.addLayout(body, 1)
 
         body.addWidget(self._build_run_header())
+
+        self.balance_bar_w = QWidget()
+        balance_bar = QHBoxLayout(self.balance_bar_w)
+        balance_bar.setContentsMargins(0, 0, 0, 4)
+        balance_bar.addWidget(QLabel("<b>Balance:</b>"))
+        balance_bar.addWidget(self.cmbBalance)
+        balance_bar.addWidget(self.cmbPort)
+        balance_bar.addWidget(self.btnBalanceRefreshPorts)
+        balance_bar.addWidget(self.btnBalanceConnect)
+        balance_bar.addWidget(self.lblBalanceDot)
+        balance_bar.addWidget(self.lblBalanceReading)
+        balance_bar.addStretch(1)
+        self.balance_bar_w.setVisible(False)
+        body.addWidget(self.balance_bar_w)
+        self.btnBalanceRefreshPorts.clicked.connect(self._refresh_balance_ports)
+        self.btnBalanceConnect.clicked.connect(self._toggle_balance_connect)
+
         body.addWidget(self._build_data_group(), 1)
 
         # footer toolbar
@@ -583,6 +636,7 @@ class NGAMExtractionRunWindow(QDialog):
         self._btnBulkEnd    = _btn("Stamp All End",   "#E65100", "#BF360C", "Set dTimeEnd of all samples to now")
         self._btnEfficiency = _btn("Line Efficiency", "#4527A0", "#311B92",
                                    "Manage extraction line efficiency calibrations")
+        self._btnPrintLabels = _btn("Print Labels",   "#0288D1", "#01579B", "Print QR code labels for this run")
         self._btnClose      = _btn("Close",           "#7f8c8d", "#636e72")
 
         self._btnEdit.clicked.connect(self._toggle_edit)
@@ -591,14 +645,49 @@ class NGAMExtractionRunWindow(QDialog):
         self._btnBulkStart.clicked.connect(self._bulk_stamp_start)
         self._btnBulkEnd.clicked.connect(self._bulk_stamp_end)
         self._btnEfficiency.clicked.connect(self._open_efficiency_dialog)
+        self._btnPrintLabels.clicked.connect(self._print_extraction_labels)
         self._btnClose.clicked.connect(self.reject)
 
         for b in (self._btnEdit, self._btnFinalize, self._btnExport,
                   self._btnBulkStart, self._btnBulkEnd,
-                  self._btnEfficiency, self._btnClose):
+                  self._btnEfficiency, self._btnPrintLabels, self._btnClose):
             lay.addWidget(b)
 
         return frm
+
+    def _print_extraction_labels(self):
+        """Fetch samples for this extraction run and open the QR label printer."""
+        try:
+            with db_manager.get_connection() as conn:
+                rows = conn.execute(text("""
+                    SELECT d.iposition,
+                           a.prefix, a.sampleid, s.sname,
+                           d.analysisid
+                    FROM   ngam.ngextractiondata d
+                    JOIN   public.analysis a ON a.analysisid = d.analysisid
+                    JOIN   public.sample   s ON s.sampleid   = a.sampleid
+                                             AND s.prefix     = a.prefix
+                    WHERE  d.runid = :r
+                    ORDER  BY d.iposition
+                """), {"r": self._run_id}).fetchall()
+        except Exception as exc:
+            logging.error("Extraction label fetch: %s", exc)
+            show_message(self, "Error", str(exc), QMessageBox.Critical)
+            return
+        if not rows:
+            show_message(self, "No Data", "No samples found for this run.", QMessageBox.Warning)
+            return
+        specs = [
+            analysis_spec(
+                prefix=r.prefix or "",
+                sample_id=str(r.sampleid),
+                analysis_id=str(r.analysisid),
+                container_num=f"Pos {r.iposition}",
+                job_type="Extraction",
+            )
+            for r in rows
+        ]
+        SampleLabelDialog.show_batch(specs, parent=self).exec_()
 
     # ── data loading ──────────────────────────────────────────────────────────
 
@@ -1035,10 +1124,91 @@ class NGAMExtractionRunWindow(QDialog):
                 padding:4px 14px; border-radius:4px; }}"""
         )
 
+        if editing:
+            self._refresh_balance_ports()
+        else:
+            self.balance_reader.disconnect_port()
+        self.balance_bar_w.setVisible(editing)
+
         is_complete = (self.dtEnd.dateTime() != self.dtEnd.minimumDateTime())
         self._btnFinalize.setEnabled(
             self.has_write and not is_complete and not editing
         )
+
+    # ── balance link (RS-232/USB) ---------------------------------------------
+
+    def _refresh_balance_ports(self):
+        current = self.cmbPort.currentText()
+        self.cmbPort.clear()
+        self.cmbPort.addItems(list_available_ports())
+        idx = self.cmbPort.findText(current)
+        if idx >= 0:
+            self.cmbPort.setCurrentIndex(idx)
+
+    def _toggle_balance_connect(self):
+        if self.balance_reader.connected:
+            self.balance_reader.disconnect_port()
+            return
+        equipment_id = self.cmbBalance.currentData()
+        port_name = self.cmbPort.currentText()
+        if not equipment_id or not port_name:
+            show_message(self, "Balance", "Select a balance and a serial port first.")
+            return
+        self.balance_reader.connect_to(equipment_id, port_name)
+
+    def _on_balance_connection_changed(self, connected: bool):
+        self.btnBalanceConnect.setText("Disconnect" if connected else "Connect")
+        self.lblBalanceDot.setStyleSheet(f"color:{'#43A047' if connected else '#B0BEC5'}; font-size:14px;")
+        self.cmbBalance.setEnabled(not connected)
+        self.cmbPort.setEnabled(not connected)
+        self.btnBalanceRefreshPorts.setEnabled(not connected)
+
+    def _on_balance_status(self, text: str):
+        self.lblBalanceReading.setText(text)
+
+    def _on_balance_reading(self, value: float):
+        """Inject a stable balance reading into the currently-targeted cell
+        and advance to the next row, same column -- mirrors web's
+        injectBalanceValue()/advanceFocus(). Writes straight to the DB via
+        _commit_extraction_cell_immediately() since this window's normal
+        save path only runs in bulk on Stop Editing."""
+        if not self.is_editing:
+            return
+        idx = self._table.currentIndex()
+        if not idx.isValid() or idx.column() not in C.BALANCE_TARGET_COLS:
+            return
+        row, col = idx.row(), idx.column()
+        if row >= self._model.rowCount():
+            return
+
+        self._model.item(row, col).setText(f"{value:.4f}")
+        self._commit_extraction_cell_immediately(row, col, value)
+
+        next_row = (row + 1) % self._model.rowCount()
+        next_idx = self._model.index(next_row, col)
+        self._table.setCurrentIndex(next_idx)
+        self._table.scrollTo(next_idx)
+
+    def _commit_extraction_cell_immediately(self, row: int, col: int, value: float):
+        db_col = C.BALANCE_TARGET_COLS.get(col)
+        pos = self._pos_map.get(row)
+        if db_col is None or pos is None:
+            return
+        try:
+            with db_manager.get_connection() as conn:
+                conn.execute(text(f"""
+                    UPDATE ngam.ngextractiondata
+                    SET {db_col} = :val
+                    WHERE runid = :rid AND iposition = :pos
+                """), {"val": value, "rid": self._run_id, "pos": pos})
+                conn.commit()
+        except Exception as exc:
+            logging.error("Balance immediate commit failed (row %d): %s", row, exc)
+            self._lbl_footer.setText(f"Balance commit failed: {exc}")
+
+    def closeEvent(self, event):
+        self.balance_reader.disconnect_port()
+        super().closeEvent(event)
 
     # ── save -----------------------------------------------------------------
 

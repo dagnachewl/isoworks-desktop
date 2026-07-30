@@ -570,11 +570,11 @@ class SiamRunDetailsWindow(QDialog):
                            s.Prefix || '-' || CAST(s.SampleID AS VARCHAR) AS SampleCode,
                            s.sName,
                            res.MeasurableID                             AS MID,
-                           m.MeasurableName                             AS MName,
+                           m.AnalyteName                                AS MName,
                            COALESCE(mu.ShortName, '')                   AS Unit,
                            res.fValue, res.fValueUnc
                     FROM SIAM.SIAnalysisResult res
-                    JOIN Measurables m              ON m.MeasurableID   = res.MeasurableID
+                    JOIN Analytes m                 ON m.AnalyteID      = res.MeasurableID
                     LEFT JOIN MeasurementUnit mu    ON mu.UnitID        = m.UnitID
                     JOIN SIAM.SIAnalysisLoadList ll ON ll.SIAnalysisID  = res.SIAnalysisID
                     JOIN Analysis a                 ON a.AnalysisID     = ll.AnalysisID
@@ -1008,11 +1008,11 @@ class SiamRunDetailsWindow(QDialog):
                            s.Prefix || '-' || CAST(s.SampleID AS VARCHAR) AS samplecode,
                            s.sName,
                            res.MeasurableID                             AS mid,
-                           m.MeasurableName                             AS mname,
+                           m.AnalyteName                                AS mname,
                            COALESCE(mu.ShortName, '')                   AS unit,
                            res.fValue, res.fValueUnc
                     FROM SIAM.SIAnalysisResult res
-                    JOIN Measurables m              ON m.MeasurableID   = res.MeasurableID
+                    JOIN Analytes m                 ON m.AnalyteID      = res.MeasurableID
                     LEFT JOIN MeasurementUnit mu    ON mu.UnitID        = m.UnitID
                     JOIN SIAM.SIAnalysisLoadList ll ON ll.SIAnalysisID  = res.SIAnalysisID
                     JOIN Analysis a                 ON a.AnalysisID     = ll.AnalysisID

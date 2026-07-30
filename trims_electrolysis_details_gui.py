@@ -25,12 +25,9 @@ from sqlalchemy import text
 from db_core import db_manager
 from shared_utils import check_employee_privilege, set_status, get_current_user_id, normalize_login_name
 from gui_utils import show_message
+from balance_serial import BalanceSerialReader, load_balance_equipment, list_available_ports
 
-try:
-    from dymo_utils import DymoLabelPrinter
-    HAS_DYMO_SUPPORT = True
-except ImportError:
-    HAS_DYMO_SUPPORT = False
+from sample_label_gui import SampleLabelDialog, analysis_spec
 
 
 # -------------------- Delegates --------------------
@@ -213,6 +210,18 @@ class TrimsElectrolysisDetailsWindow(QDialog):
     COL_STATUS = 19      # Analysis.Status (combo or display)
     COL_REMARKS = 20     # Remarks LAST, so we can stretch it
 
+    # Weight columns _on_item_changed() actually persists on edit (i.e. the
+    # ones a balance reading can usefully land in) -- COL_NA2O2/COL_AMPH/
+    # COL_NEUT are double-click-activatable but aren't in that handler's
+    # column list, so editing them alone doesn't autosave; pre-existing gap,
+    # left as-is, just excluded from balance targeting so a captured
+    # reading is never silently lost.
+    BALANCE_TARGET_COLS = {
+        COL_EMPTY, COL_FULL_PRE, COL_FULL_POST,
+        COL_TRAP_PRE, COL_TRAP_POST,
+        COL_BOT_EMPTY, COL_BOT_FULL, COL_BOT_RESID,
+    }
+
     def __init__(self, run_id: int, link_criteria: str = "", parent: Optional[QWidget] = None, compact_ui: bool = True) -> None:
         super().__init__(parent)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
@@ -238,6 +247,7 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         self.btnSave = QPushButton("Save"); self.btnSave.setAutoDefault(False)
         self.btnCancel = QPushButton("Cancel"); self.btnCancel.setAutoDefault(False)
         self.btnSave.hide(); self.btnCancel.hide()
+        self.btnPrintLabels = QPushButton("Print Labels"); self.btnPrintLabels.setAutoDefault(False)
         self.btnClose = QPushButton("Close"); self.btnClose.setAutoDefault(False)
         self.txtRunID = QLineEdit(); self.dtStart = QDateTimeEdit()
         self.dtEnd = QDateTimeEdit(); self.chkFinished = QCheckBox("Finished?")
@@ -266,6 +276,26 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         )
 
         self.status_label = QLabel("Ready")
+
+        # Balance link (RS-232/USB) -- bar only shown while editing, mirrors
+        # web's TrimsElectrolysis.tsx isEditing-gated balance bar.
+        self.cmbBalance = QComboBox()
+        self.cmbBalance.setMinimumWidth(160)
+        self.cmbPort = QComboBox()
+        self.cmbPort.setMinimumWidth(160)
+        self.btnBalanceRefreshPorts = QPushButton("⟳")
+        self.btnBalanceRefreshPorts.setFixedWidth(28)
+        self.btnBalanceRefreshPorts.setToolTip("Refresh serial port list")
+        self.btnBalanceConnect = QPushButton("Connect")
+        self.lblBalanceDot = QLabel("●")
+        self.lblBalanceDot.setStyleSheet("color:#B0BEC5; font-size:14px;")
+        self.lblBalanceReading = QLabel("")
+        self.lblBalanceReading.setStyleSheet("color:#555; font-family:monospace;")
+        self.balance_reader = BalanceSerialReader(self)
+        self.balance_reader.stableReading.connect(self._on_balance_reading)
+        self.balance_reader.statusChanged.connect(self._on_balance_status)
+        self.balance_reader.connectionChanged.connect(self._on_balance_connection_changed)
+
         self._init_ui()
         try:
             self._check_privileges()
@@ -289,8 +319,23 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         top_bar.addWidget(self.btnEdit)
         top_bar.addWidget(self.btnSave)
         top_bar.addWidget(self.btnCancel)
+        top_bar.addWidget(self.btnPrintLabels)
         top_bar.addWidget(self.btnClose)
         main_layout.addLayout(top_bar)
+
+        self.balance_bar_w = QWidget()
+        balance_bar = QHBoxLayout(self.balance_bar_w)
+        balance_bar.setContentsMargins(0, 0, 0, 4)
+        balance_bar.addWidget(QLabel("<b>Balance:</b>"))
+        balance_bar.addWidget(self.cmbBalance)
+        balance_bar.addWidget(self.cmbPort)
+        balance_bar.addWidget(self.btnBalanceRefreshPorts)
+        balance_bar.addWidget(self.btnBalanceConnect)
+        balance_bar.addWidget(self.lblBalanceDot)
+        balance_bar.addWidget(self.lblBalanceReading)
+        balance_bar.addStretch(1)
+        self.balance_bar_w.setVisible(False)
+        main_layout.addWidget(self.balance_bar_w)
 
         self._build_header_form()
         main_layout.addWidget(self.header_group)
@@ -302,10 +347,47 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         self.btnEdit.clicked.connect(self._start_edit_mode)
         self.btnSave.clicked.connect(self._save_edit_mode)
         self.btnCancel.clicked.connect(self._cancel_edit_mode)
+        self.btnPrintLabels.clicked.connect(self._print_electrolysis_labels)
         self.btnClose.clicked.connect(self.accept)
         self.model.itemChanged.connect(self._on_item_changed)
         self.table.horizontalHeader().sectionDoubleClicked.connect(self._on_header_double_clicked)
         self.chkFinished.toggled.connect(self._on_finished_toggled)
+        self.btnBalanceRefreshPorts.clicked.connect(self._refresh_balance_ports)
+        self.btnBalanceConnect.clicked.connect(self._toggle_balance_connect)
+
+    def _print_electrolysis_labels(self):
+        """Fetch cells for this run and open the QR label printer."""
+        try:
+            with db_manager.get_connection() as conn:
+                rows = conn.execute(text("""
+                    SELECT e.CellID,
+                           s.Prefix, s.SampleID, s.sName,
+                           a.AnalysisID
+                    FROM   TRIMS.Electrolysis e
+                    JOIN   Analysis a ON a.AnalysisID = e.AnalysisID
+                    JOIN   Sample   s ON s.SampleID   = a.SampleID
+                                     AND s.Prefix     = a.Prefix
+                    WHERE  e.RunID = :r
+                    ORDER  BY e.CellID
+                """), {"r": self.run_id}).fetchall()
+        except Exception as exc:
+            logging.error("Electrolysis label fetch: %s", exc)
+            show_message(self, "Error", str(exc))
+            return
+        if not rows:
+            show_message(self, "No Data", "No cells found for this run.")
+            return
+        specs = [
+            analysis_spec(
+                prefix=r.Prefix or "",
+                sample_id=str(r.SampleID),
+                analysis_id=str(r.AnalysisID),
+                container_num=f"Cell {r.CellID}",
+                job_type="Electrolysis",
+            )
+            for r in rows
+        ]
+        SampleLabelDialog.show_batch(specs, parent=self).exec_()
 
     def _build_header_form(self):
         self.header_group = QGroupBox("Run Metadata")
@@ -385,6 +467,9 @@ class TrimsElectrolysisDetailsWindow(QDialog):
             )).fetchall()
             self.status_options = [(int(r.Status), str(r.Description)) for r in st_rows]
             self.status_desc_by_code = {int(r.Status): str(r.Description) for r in st_rows}
+
+        for eid, name in load_balance_equipment():
+            self.cmbBalance.addItem(name, eid)
 
     def _load_header(self):
         with db_manager.get_connection() as conn:
@@ -607,6 +692,8 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         self.active_edit_cols = {self.COL_EMPTY}
         self.num_delegate.set_target_columns(list(self.active_edit_cols))
         self._update_editable_columns()
+        self._refresh_balance_ports()
+        self.balance_bar_w.setVisible(True)
 
     def _save_edit_mode(self):
         self._save_header()
@@ -619,6 +706,8 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         self.active_edit_cols.clear()
         self._update_editable_columns()
         self._apply_read_only_state()
+        self.balance_reader.disconnect_port()
+        self.balance_bar_w.setVisible(False)
 
     def _cancel_edit_mode(self):
         self.is_editing = False
@@ -633,6 +722,67 @@ class TrimsElectrolysisDetailsWindow(QDialog):
         self.active_edit_cols.clear()
         self._update_editable_columns()
         self._apply_read_only_state()
+        self.balance_reader.disconnect_port()
+        self.balance_bar_w.setVisible(False)
+
+    # ---------- Balance link (RS-232/USB) ----------
+    def _refresh_balance_ports(self):
+        current = self.cmbPort.currentText()
+        self.cmbPort.clear()
+        ports = list_available_ports()
+        self.cmbPort.addItems(ports)
+        idx = self.cmbPort.findText(current)
+        if idx >= 0:
+            self.cmbPort.setCurrentIndex(idx)
+
+    def _toggle_balance_connect(self):
+        if self.balance_reader.connected:
+            self.balance_reader.disconnect_port()
+            return
+        equipment_id = self.cmbBalance.currentData()
+        port_name = self.cmbPort.currentText()
+        if not equipment_id or not port_name:
+            show_message(self, "Balance", "Select a balance and a serial port first.")
+            return
+        self.balance_reader.connect_to(equipment_id, port_name)
+
+    def _on_balance_connection_changed(self, connected: bool):
+        self.btnBalanceConnect.setText("Disconnect" if connected else "Connect")
+        self.lblBalanceDot.setStyleSheet(f"color:{'#43A047' if connected else '#B0BEC5'}; font-size:14px;")
+        self.cmbBalance.setEnabled(not connected)
+        self.cmbPort.setEnabled(not connected)
+        self.btnBalanceRefreshPorts.setEnabled(not connected)
+
+    def _on_balance_status(self, text: str):
+        self.lblBalanceReading.setText(text)
+
+    def _on_balance_reading(self, value: float):
+        """Inject a stable balance reading into the currently-targeted cell
+        (current row, the single active edit column) and advance to the next
+        row -- mirrors web's injectBalanceValue()/advanceFocus(). Writing via
+        setText() alone triggers the existing itemChanged -> _save_row_to_db
+        autosave, so no separate commit call is needed here."""
+        if not self.is_editing or len(self.active_edit_cols) != 1:
+            return
+        col = next(iter(self.active_edit_cols))
+        if col not in self.BALANCE_TARGET_COLS:
+            return
+        row = self.table.currentIndex().row()
+        if row < 0:
+            row = 0
+        if row >= self.model.rowCount():
+            return
+
+        self.model.item(row, col).setText(f"{value:.1f}")
+
+        next_row = row + 1
+        if next_row < self.model.rowCount():
+            self.table.setCurrentIndex(self.model.index(next_row, col))
+            self.table.scrollTo(self.model.index(next_row, col))
+
+    def closeEvent(self, event):
+        self.balance_reader.disconnect_port()
+        super().closeEvent(event)
 
     def _on_header_double_clicked(self, index):
         if not self.is_editing:
@@ -931,7 +1081,7 @@ class TrimsElectrolysisDetailsWindow(QDialog):
                     "tp": g(self.COL_TRAP_PRE), "tpo": g(self.COL_TRAP_POST),
                     "be": g(self.COL_BOT_EMPTY), "bf": g(self.COL_BOT_FULL), "br": g(self.COL_BOT_RESID),
                     "nm": g(self.COL_NEUT), "rem": self.model.item(r, self.COL_REMARKS).text(),
-                    "ign": 1 if is_ignored else 0
+                    "ign": is_ignored
                 })
                 conn.commit()
                 set_status(self.status_label, f"Cell {cell_id} updated.", "success")

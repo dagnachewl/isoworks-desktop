@@ -46,7 +46,7 @@ class MeasurablesEditorDialog(QDialog):
     def _load_combo(self):
         try:
             with db_manager.get_connection() as conn:
-                res = conn.execute(text("SELECT MeasurableID, MeasurableName FROM Measurables ORDER BY MeasurableID"))
+                res = conn.execute(text("SELECT AnalyteID, AnalyteName FROM Analytes ORDER BY AnalyteID"))
                 self.cmbMeas.addItem("- Select -", None)
                 for r in res: self.cmbMeas.addItem(r[1], r[0])
         except Exception as _e: logging.error(f"[{__class__.__name__ if hasattr(__class__, '__name__') else ''}] {_e}", exc_info=False)
@@ -55,7 +55,7 @@ class MeasurablesEditorDialog(QDialog):
         self.tbl.setRowCount(0)
         try:
             with db_manager.get_connection() as conn:
-                res = conn.execute(text("SELECT M.MeasurableName, AP.AccuracyLimit, AP.Repeats, AP.RepeatAcceptancePercent, M.MeasurableID FROM AnalysisProcedure_Measurable AP JOIN Measurables M ON AP.MeasurableID=M.MeasurableID WHERE AP.ProcedureID=:pid"), {"pid": self.pid})
+                res = conn.execute(text("SELECT M.AnalyteName, AP.AccuracyLimit, AP.Repeats, AP.RepeatAcceptancePercent, M.AnalyteID FROM AnalysisProcedure_Measurable AP JOIN Analytes M ON AP.MeasurableID=M.AnalyteID WHERE AP.ProcedureID=:pid"), {"pid": self.pid})
                 for r in res:
                     row = self.tbl.rowCount(); self.tbl.insertRow(row)
                     self.tbl.setItem(row, 0, QTableWidgetItem(r[0]))

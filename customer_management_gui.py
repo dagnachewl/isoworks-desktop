@@ -20,6 +20,7 @@ from db_core import db_manager
 from sqlalchemy import text
 from gui_utils import show_message
 from help_browser import make_help_button
+from settings_style import BTN_SS, BTN_ADD_SS, BTN_DEL_SS
 
 class CustomerManagementWidget(QWidget):
     """
@@ -60,8 +61,12 @@ class CustomerManagementWidget(QWidget):
 
     # --- UI ---
     def _create_action_buttons(self):
-        l = QHBoxLayout(); self.btnNew = QPushButton("New"); self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save"); self.btnCancel = QPushButton("Cancel"); self.btnDelete = QPushButton("Delete")
+        l = QHBoxLayout()
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
+        self.btnDelete = QPushButton("Delete"); self.btnDelete.setStyleSheet(BTN_DEL_SS)
         l.addStretch(1)
         for b in [self.btnNew, self.btnEdit, self.btnSave, self.btnCancel, self.btnDelete]: l.addWidget(b)
         l.addWidget(make_help_button(self, "customer_mgmt"))

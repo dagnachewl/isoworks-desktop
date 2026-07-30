@@ -324,11 +324,11 @@ class ChemEnrCreateRunDialog(QDialog):
             with db_manager.get_connection() as conn:
                 # Isotope: Workflow → Media → Measurables (ILIKE for PG case-insensitivity)
                 iso_row = conn.execute(text("""
-                    SELECT m2.MeasurableID, m2.MeasurableName
+                    SELECT m2.AnalyteID AS MeasurableID, m2.AnalyteName AS MeasurableName
                     FROM Workflow w
-                    INNER JOIN Media       m1 ON m1.MediaID = w.MediaID
-                    INNER JOIN Measurables m2
-                           ON m2.MeasurableName ILIKE '%' || m1.abbreviation || '%'
+                    INNER JOIN Media     m1 ON m1.MediaID = w.MediaID
+                    INNER JOIN Analytes  m2
+                           ON m2.AnalyteName ILIKE '%' || m1.abbreviation || '%'
                     WHERE w.WorkflowID = :wid
                     LIMIT 1
                 """), {"wid": wid}).fetchone()
@@ -712,10 +712,10 @@ class ChemEnrRunsWindow(QWidget):
         try:
             with db_manager.get_connection() as conn:
                 for r in conn.execute(text(
-                    "SELECT DISTINCT m.MeasurableID, m.MeasurableName "
+                    "SELECT DISTINCT m.AnalyteID AS MeasurableID, m.AnalyteName AS MeasurableName "
                     "FROM TRIMS.ChemEnrRun cr "
-                    "INNER JOIN Measurables m ON m.MeasurableID = cr.MeasurableID "
-                    "ORDER BY m.MeasurableName"
+                    "INNER JOIN Analytes m ON m.AnalyteID = cr.MeasurableID "
+                    "ORDER BY m.AnalyteName"
                 )):
                     self.cmbIsotopeFilter.addItem(r.MeasurableName, r.MeasurableID)
         except Exception as e:
@@ -808,10 +808,10 @@ class ChemEnrRunsWindow(QWidget):
         sql = f"""
             SELECT cr.RunID, cr.MeasurableID, cr.EnrichmentMethod,
                    cr.RunDate, cr.IsFinished, cr.TechnicianID, cr.Remarks,
-                   m.MeasurableName,
+                   m.AnalyteName AS MeasurableName,
                    e.LastName || ', ' || e.FirstMiddleName AS TechName
             FROM TRIMS.ChemEnrRun cr
-            LEFT JOIN Measurables m  ON m.MeasurableID  = cr.MeasurableID
+            LEFT JOIN Analytes m     ON m.AnalyteID  = cr.MeasurableID
             LEFT JOIN Employee    e  ON e.EmployeeID     = cr.TechnicianID
             {where_clause}
             ORDER BY cr.RunDate DESC, cr.RunID DESC

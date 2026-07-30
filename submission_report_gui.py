@@ -60,7 +60,7 @@ def _fetch_submission_rows(conn, sid):
             samp.Prefix || '-' || CAST(samp.SampleID AS TEXT)  AS SampleCode,
             samp.sName                                          AS SampleName,
             samp.CollectionDate,
-            COALESCE(m.MeasurableName, m.ParameterLabel)        AS Parameter,
+            COALESCE(m.AnalyteName, m.ParameterLabel)           AS Parameter,
             fv.fValue,
             fv.fValueUnc,
             mu.ShortName                                        AS Unit,
@@ -73,12 +73,12 @@ def _fetch_submission_rows(conn, sid):
         JOIN Analysis  a   ON fv.AnalysisID  = a.AnalysisID
         JOIN Sample   samp ON samp.SampleID  = a.SampleID
                            AND samp.Prefix   = a.Prefix
-        JOIN Measurables m ON m.MeasurableID = fv.analyteid
+        JOIN Analytes m    ON m.AnalyteID   = fv.analyteid
         LEFT JOIN MeasurementUnit mu  ON mu.UnitID    = fv.MeasurableUnit
         LEFT JOIN Workflow         w   ON w.WorkflowID = a.WorkflowID
         WHERE samp.SubmissionID = :sid
           AND (fv.RejectFlag IS NULL OR fv.RejectFlag = false)
-        ORDER BY samp.SampleID, COALESCE(m.MeasurableName, m.ParameterLabel)
+        ORDER BY samp.SampleID, COALESCE(m.AnalyteName, m.ParameterLabel)
     """), {'sid': sid}).fetchall()
 
 

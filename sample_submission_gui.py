@@ -526,7 +526,9 @@ class SampleSubmissionWindow(QWidget):
                 if idx >= 0: self.cmb_priority.setCurrentIndex(idx)
 
                 self.field_params_list = [("", None)]
-                fp_sql = "SELECT MeasurableID, ParameterLabel FROM Measurables WHERE EductMaterial='Water' AND IsFieldParam=1 ORDER BY ParameterLabel"
+                fp_sql = ("SELECT a.AnalyteID, a.ParameterLabel FROM Analytes a "
+                          "JOIN Matrix mx ON mx.MatrixID = a.MatrixID "
+                          "WHERE mx.MatrixName='Water' AND a.IsFieldParam=1 ORDER BY a.ParameterLabel")
                 for row in conn.execute(text(fp_sql)):
                     self.field_params_list.append((row[1], row[0]))
                 self.cmb_map_param.clear()

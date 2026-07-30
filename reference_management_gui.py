@@ -22,6 +22,7 @@ from db_core import db_manager
 from sqlalchemy import text
 from gui_utils import show_message
 from help_browser import make_help_button
+from settings_style import BTN_SS, BTN_ADD_SS, BTN_DEL_SS
 
 try: from reference_data_subform_gui import ReferenceDataSubform
 except ImportError: ReferenceDataSubform = None
@@ -68,8 +69,12 @@ class ReferenceManagementWidget(QWidget):
 
     # --- UI ---
     def _create_action_buttons(self):
-        l = QHBoxLayout(); self.btnNew = QPushButton("New"); self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save"); self.btnCancel = QPushButton("Cancel"); self.btnDelete = QPushButton("Delete")
+        l = QHBoxLayout()
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
+        self.btnDelete = QPushButton("Delete"); self.btnDelete.setStyleSheet(BTN_DEL_SS)
         l.addStretch(1)
         for b in [self.btnNew, self.btnEdit, self.btnSave, self.btnCancel, self.btnDelete]: l.addWidget(b)
         l.addWidget(make_help_button(self, "reference_mgmt"))
@@ -173,7 +178,7 @@ class ReferenceManagementWidget(QWidget):
         try:
             with db_manager.get_connection() as conn:
                 # --- FIXED SYNTAX: Triple quotes ---
-                sql = f"""SELECT ID, {db_manager.sql_concat('ID', "': '", 'sName')} FROM Job_Procedure WHERE ID In (3, 4, 5, 11, 14) ORDER BY ID"""
+                sql = f"""SELECT ID, {db_manager.sql_concat('ID', "': '", 'sName')} FROM Job_Procedure WHERE ID In (3, 4, 5, 11, 14, 19) ORDER BY ID"""
                 self.cmbCategoryID.blockSignals(True); self.cmbCategoryID.clear()
                 for r in conn.execute(text(sql)): self.cmbCategoryID.addItem(r[1], r[0])
                 idx = self.cmbCategoryID.findData(5); self.cmbCategoryID.setCurrentIndex(idx if idx>-1 else 0)
@@ -205,6 +210,7 @@ class ReferenceManagementWidget(QWidget):
         if cid in [1,2,3,4,10,11]: self.current_prefix = "J"
         elif cid == 5: self.current_prefix = self.cmbMedia.itemData(self.cmbMedia.currentIndex(), Qt.UserRole) or "W"
         elif cid in [12,13,14]: self.current_prefix = "G"
+        elif cid == 19: self.current_prefix = "C"
         else: self.current_prefix = "W"
         self.load_sample_type_combo(self.current_prefix); self.load_selection_list(self.current_prefix)
 

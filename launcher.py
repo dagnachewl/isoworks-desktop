@@ -183,6 +183,10 @@ def load_employee_mgmt():
     from employee_management_gui import EmployeeModuleWidget
     return EmployeeModuleWidget()
 
+def load_role_mgmt():
+    from role_management_gui import RoleManagementWidget
+    return RoleManagementWidget()
+
 def load_customer_mgmt():
     from customer_management_gui import CustomerManagementWidget
     return CustomerManagementWidget()
@@ -586,6 +590,13 @@ class AppShell(QMainWindow):
                     icon=IconCache.get_icon("system-users", color=ICON_COLORS["settings"]),
                     description="Add, edit, or remove employees and their roles.",
                     make_embedded_widget=load_employee_mgmt
+                ),
+                ModuleSpec(
+                    key="role_mgmt",
+                    title="Role Management",
+                    icon=IconCache.get_icon("system-users", color=ICON_COLORS["settings"]),
+                    description="Create and edit roles: which privileges and modules each one grants.",
+                    make_embedded_widget=load_role_mgmt
                 ),
                 ModuleSpec(
                     key="customer_mgmt",

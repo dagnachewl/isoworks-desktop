@@ -27,6 +27,7 @@ from db_core import db_manager
 from sqlalchemy import text
 from gui_utils import show_message
 from help_browser import make_help_button
+from settings_style import BTN_SS, BTN_ADD_SS, BTN_DEL_SS, HDR_SS
 
 # --- Import the Maintenance Dialog ---
 try:
@@ -57,6 +58,7 @@ class ElectrolysisCellsSubformWidget(QWidget):
         self.table_view.setModel(self.model)
         self.table_view.setEditTriggers(QTableView.NoEditTriggers)
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
+        self.table_view.horizontalHeader().setStyleSheet(HDR_SS)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_view.setAlternatingRowColors(True)
         layout.addWidget(self.table_view)
@@ -101,8 +103,12 @@ class SfrmEditElectrolysisCellConstantsWidget(QWidget):
         l = QVBoxLayout(self); l.setContentsMargins(0,0,0,0)
         
         nav = QHBoxLayout()
-        self.cmbSelectionList = QComboBox(); self.btnNew = QPushButton("New"); self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save"); self.btnCancel = QPushButton("Cancel"); self.btnDelete = QPushButton("Delete")
+        self.cmbSelectionList = QComboBox()
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
+        self.btnDelete = QPushButton("Delete"); self.btnDelete.setStyleSheet(BTN_DEL_SS)
         nav.addWidget(QLabel("History:")); nav.addWidget(self.cmbSelectionList, 1)
         for b in [self.btnNew, self.btnEdit, self.btnSave, self.btnCancel, self.btnDelete]: nav.addWidget(b)
         l.addLayout(nav)
@@ -194,8 +200,12 @@ class SfrmEditElectrolysisCellsWidget(QWidget):
         l = QVBoxLayout(self)
         
         h = QHBoxLayout()
-        self.cmbSelectionList = QComboBox(); self.btnNew = QPushButton("New"); self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save"); self.btnCancel = QPushButton("Cancel"); self.btnDelete = QPushButton("Delete")
+        self.cmbSelectionList = QComboBox()
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
+        self.btnDelete = QPushButton("Delete"); self.btnDelete.setStyleSheet(BTN_DEL_SS)
         h.addWidget(QLabel("Select Cell:")); h.addWidget(self.cmbSelectionList, 1)
         for b in [self.btnNew, self.btnEdit, self.btnSave, self.btnCancel, self.btnDelete]: h.addWidget(b)
         l.addLayout(h)
@@ -460,8 +470,12 @@ class EquipmentManagementWidget(QWidget):
     def _sql_concat(self, *args): return _sql_concat_global(*args)
 
     def _create_action_buttons(self):
-        l = QHBoxLayout(); self.btnNew = QPushButton("New"); self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save"); self.btnCancel = QPushButton("Cancel"); self.btnDelete = QPushButton("Delete")
+        l = QHBoxLayout()
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
+        self.btnDelete = QPushButton("Delete"); self.btnDelete.setStyleSheet(BTN_DEL_SS)
         l.addStretch(1); l.addWidget(self.btnNew); l.addWidget(self.btnEdit); l.addWidget(self.btnSave)
         l.addWidget(self.btnCancel); l.addWidget(self.btnDelete)
         l.addWidget(make_help_button(self, "equipment_mgmt"))

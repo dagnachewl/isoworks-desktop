@@ -726,10 +726,10 @@ class DashboardWidget(QWidget):
                 try:
                     dt = "TO_CHAR(r.RunDate,'YYYY-MM-DD')" if pg else "FORMAT(r.RunDate,'yyyy-MM-dd')"
                     rs = conn.execute(text(f"""
-                        SELECT r.RunID, m.MeasurableName, '',
+                        SELECT r.RunID, m.AnalyteName, '',
                                {dt}, {isnull}(cnt.n, 0)
                         FROM TRIMS.ChemEnrRun r
-                        LEFT JOIN Measurables m ON m.MeasurableID = r.MeasurableID
+                        LEFT JOIN Analytes m ON m.AnalyteID = r.MeasurableID
                         LEFT JOIN (
                             SELECT RunID, COUNT(ChemEnrID) AS n
                             FROM TRIMS.ChemicalEnrichment GROUP BY RunID

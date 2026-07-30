@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QLabel, QLineEdit, QTextEdit, QDateTimeEdit,
     QPushButton, QTableView, QHeaderView,
     QAbstractItemView, QMessageBox, QCheckBox, QFrame,
-    QDoubleSpinBox, QFileDialog,
+    QDoubleSpinBox, QFileDialog, QGraphicsDropShadowEffect,
 )
 from PyQt5.QtCore import Qt, QDateTime
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QColor, QBrush
@@ -40,6 +40,7 @@ from ngam_script_generator import (
     NgInletDef, NgPipetteDef, NgVesselDef, NgScriptGenerator,
     DEFAULT_PIPETTES, DEFAULT_VESSELS,
 )
+from sample_label_gui import SampleLabelDialog, analysis_spec
 
 
 # ─────────────────────────────── column constants ────────────────────────────
@@ -69,6 +70,45 @@ class C:
 _HDR_BG   = "#1F3A5F"
 _PANEL_BG = "#EAF0F6"
 
+# Shared "glass" style for the header command buttons -- same look as the
+# Import from Protocol screen: one uniform cool-blue translucent gradient
+# instead of a distinct color per action, with a soft glow companion effect
+# (QSS alone can't do box-shadow-style glows in Qt).
+_BTN_GLASS = (
+    "QPushButton {"
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "    stop:0 rgba(120, 190, 255, 190), stop:0.5 rgba(66, 165, 245, 205), stop:1 rgba(25, 118, 210, 215));"
+    "  color: white; font-weight: 600;"
+    "  border: 1px solid rgba(255, 255, 255, 130);"
+    "  border-radius: 8px;"
+    "  padding: 3px 14px;"
+    "}"
+    "QPushButton:hover {"
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "    stop:0 rgba(165, 217, 255, 220), stop:0.5 rgba(93, 188, 255, 230), stop:1 rgba(35, 140, 235, 235));"
+    "  border: 1px solid rgba(255, 255, 255, 200);"
+    "}"
+    "QPushButton:pressed {"
+    "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+    "    stop:0 rgba(20, 90, 170, 230), stop:1 rgba(10, 60, 130, 230));"
+    "  border: 1px solid rgba(255, 255, 255, 90);"
+    "}"
+    "QPushButton:disabled {"
+    "  background: rgba(176, 190, 197, 110);"
+    "  color: rgba(255, 255, 255, 140);"
+    "  border: 1px solid rgba(255, 255, 255, 60);"
+    "}"
+)
+
+
+def _apply_glass_glow(btn: QPushButton) -> None:
+    """Soft cool-blue glow behind a glass button -- companion to _BTN_GLASS."""
+    glow = QGraphicsDropShadowEffect(btn)
+    glow.setBlurRadius(18)
+    glow.setOffset(0, 2)
+    glow.setColor(QColor(66, 165, 245, 160))
+    btn.setGraphicsEffect(glow)
+
 # Row colours by type (mirrors the 3He sequence colour coding)
 _COL_BLANK  = QColor(200, 230, 255)   # light blue
 _COL_REPRO  = QColor(200, 255, 230)   # mint green
@@ -90,7 +130,6 @@ class NGAMNGSequenceRunWindow(QDialog):
         self._check_privileges()
         self._build_ui()
         self._load_run()
-        self.showMaximized()
 
     def _check_privileges(self):
         try:
@@ -126,40 +165,39 @@ class NGAMNGSequenceRunWindow(QDialog):
         )
         hdr_lay.addWidget(self.lblFooter, 1)
 
-        def _hdr_btn(label, color, hover):
+        def _hdr_btn(label):
             b = QPushButton(label)
             b.setFixedHeight(28)
-            b.setStyleSheet(
-                f"QPushButton {{ background:{color}; color:white; font-weight:bold;"
-                f"  border:none; padding:3px 14px; border-radius:4px; }}"
-                f"QPushButton:hover {{ background:{hover}; }}"
-                f"QPushButton:disabled {{ background:#5a6a7a; color:#9aa8b5; }}"
-            )
+            b.setStyleSheet(_BTN_GLASS)
+            _apply_glass_glow(b)
             return b
 
-        self.btnImportMS = _hdr_btn("Import MS Data", "#27ae60", "#1e8449")
+        self.btnImportMS = _hdr_btn("Import MS Data")
         self.btnImportMS.clicked.connect(self._open_import_dialog)
 
-        self.btnImportProtocol = _hdr_btn("Import from Protocol", "#1565C0", "#0D47A1")
+        self.btnImportProtocol = _hdr_btn("Import from Protocol")
         self.btnImportProtocol.setToolTip(
             "Import signal data from a LabVIEW .protocol file into this run"
         )
         self.btnImportProtocol.clicked.connect(self._open_import_from_protocol)
 
-        self.btnFinalize = _hdr_btn("Finalize Run", "#2980b9", "#1f618d")
+        self.btnFinalize = _hdr_btn("Finalize Run")
         self.btnFinalize.clicked.connect(self._finalize_run)
 
-        self.btnGenerateScripts = _hdr_btn("Generate Scripts", "#6a1b9a", "#4a148c")
+        self.btnGenerateScripts = _hdr_btn("Generate Scripts")
         self.btnGenerateScripts.setToolTip(
             "Generate LabView control scripts and Qtegra load list for this run"
         )
         self.btnGenerateScripts.clicked.connect(self._generate_scripts)
 
-        btnClose = _hdr_btn("Close", "#7f8c8d", "#636e72")
+        self.btnPrintLabels = _hdr_btn("Print Labels")
+        self.btnPrintLabels.clicked.connect(self._print_ng_sequence_labels)
+
+        btnClose = _hdr_btn("Close")
         btnClose.clicked.connect(self.reject)
 
         for btn in (self.btnImportMS, self.btnImportProtocol, self.btnFinalize,
-                    self.btnGenerateScripts, btnClose):
+                    self.btnGenerateScripts, self.btnPrintLabels, btnClose):
             hdr_lay.addWidget(btn)
 
         root.addWidget(hdr_w)
@@ -333,7 +371,11 @@ class NGAMNGSequenceRunWindow(QDialog):
                         p.bislinreference,
                         COALESCE(p.nvcreferencegas, ''),
                         p.freferenceamount,
-                        COALESCE(p.nvcremarks, '')
+                        COALESCE(p.nvcremarks, ''),
+                        p.ref_size,
+                        p.ref_instance,
+                        p.ref_size2,
+                        p.ref_instance2
                     FROM ngam.ngpreparations p
                     LEFT JOIN public.analysis a ON a.analysisid = p.analysisid
                     LEFT JOIN public.sample   s ON s.sampleid = a.sampleid
@@ -344,12 +386,22 @@ class NGAMNGSequenceRunWindow(QDialog):
 
             for r in rows:
                 r = tuple(r)
+                ref_gas, ref_size, ref_instance, ref_size2, ref_instance2 = r[8], r[11], r[12], r[13], r[14]
+                # Standard/reference positions: "Standard_{gas}{size}{instance}"
+                # (e.g. "Standard_SpikeLarge1") -- same fields/concatenation as
+                # NgamSequence.tsx's prepRefDisplayName(); falls back to the
+                # plain sample name for blanks/samples with no ref_size set.
+                if ref_gas in ("Spike", "Air") and ref_size:
+                    second = f"{ref_size2}{ref_instance2 if ref_instance2 is not None else ''}" if ref_size2 else ""
+                    sample_name = f"Standard_{ref_gas}{ref_size}{ref_instance if ref_instance is not None else ''}{second}"
+                else:
+                    sample_name = r[4] or ""
                 items = [
                     QStandardItem(str(r[0] or "")),   # Pos
                     QStandardItem(str(r[1] or "")),   # AID
                     QStandardItem(str(r[2])),          # Port
                     QStandardItem(str(r[3] or "")),   # LabID
-                    QStandardItem(str(r[4] or "")),   # sName
+                    QStandardItem(sample_name),        # sName
                     QStandardItem("Yes" if r[5] else "No"),  # Blank
                     QStandardItem("Yes" if r[6] else "No"),  # Repro
                     QStandardItem("Yes" if r[7] else "No"),  # Lin
@@ -445,6 +497,57 @@ class NGAMNGSequenceRunWindow(QDialog):
         dlg.showMaximized()   # window-modal + maximized; independent popups stay accessible
 
     # ── finalize ──────────────────────────────────────────────────────────────
+    def _print_ng_sequence_labels(self):
+        """Fetch samples for this noble gas sequence run and open the QR label printer."""
+        try:
+            with db_manager.get_connection() as conn:
+                rows = conn.execute(text("""
+                    SELECT p.positioninrun,
+                           a.prefix, a.sampleid, s.sname,
+                           p.analysisid,
+                           p.bisblank, p.bisreproreference, p.bislinreference,
+                           p.nvcreferencegas, p.ref_size, p.ref_instance,
+                           p.ref_size2, p.ref_instance2
+                    FROM   ngam.ngpreparations p
+                    LEFT JOIN public.analysis a ON a.analysisid = p.analysisid
+                    LEFT JOIN public.sample   s ON s.sampleid   = a.sampleid
+                                             AND s.prefix     = a.prefix
+                    WHERE  p.runid = :r
+                    ORDER  BY p.positioninrun
+                """), {"r": self._run_id}).fetchall()
+        except Exception as exc:
+            logging.error("Sequence label fetch: %s", exc)
+            show_message(self, "Error", str(exc))
+            return
+        if not rows:
+            show_message(self, "No Data", "No samples found for this run.")
+            return
+        specs = []
+        for r in rows:
+            ref_gas, ref_size, ref_instance, ref_size2, ref_instance2 = r[8], r[9], r[10], r[11], r[12]
+            if ref_gas in ("Spike", "Air") and ref_size:
+                second = f"{ref_size2}{ref_instance2 if ref_instance2 is not None else ''}" if ref_size2 else ""
+                sample_name = f"Standard_{ref_gas}{ref_size}{ref_instance if ref_instance is not None else ''}{second}"
+            elif r[5]:
+                sample_name = "Blank"
+            else:
+                sample_name = r[3] or ""
+
+            prefix = r[1] or ""
+            sample_id = str(r[2]) if r[2] is not None else ""
+            analysis_id = str(r[4]) if r[4] is not None else ""
+
+            specs.append(
+                analysis_spec(
+                    prefix=prefix,
+                    sample_id=sample_id,
+                    analysis_id=analysis_id,
+                    container_num=f"Port {r[0]}",
+                    job_type="NGSeq",
+                    sample_name=sample_name,
+                )
+            )
+        SampleLabelDialog.show_batch(specs, parent=self).exec_()
 
     def _finalize_run(self):
         reply = QMessageBox.question(

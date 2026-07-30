@@ -21,6 +21,7 @@ from db_core import db_manager
 from sqlalchemy import text
 from gui_utils import show_message
 from help_browser import make_help_button
+from settings_style import BTN_SS, BTN_ADD_SS, BTN_DEL_SS
 
 # --- Dialog Imports (Lazy) ---
 try: from siam_template_editor_gui import SiamTemplateEditorDialog
@@ -38,6 +39,9 @@ except ImportError: EnrichmentTemplateEditorDialog = None
 
 try: from ngam_ng_template_editor import NGSeqTemplateEditorDialog
 except ImportError: NGSeqTemplateEditorDialog = None
+
+try: from ams_wheel_template_editor_gui import AmsWheelTemplateEditorDialog
+except ImportError: AmsWheelTemplateEditorDialog = None
 
 class ProcedureManagementWidget(QWidget):
     """
@@ -90,12 +94,12 @@ class ProcedureManagementWidget(QWidget):
     # --- UI Creation (Explicit, no loops) ---
     def _create_action_buttons(self):
         l = QHBoxLayout()
-        self.btnNew = QPushButton("New")
-        self.btnDuplicate = QPushButton("Duplicate")
-        self.btnEdit = QPushButton("Edit")
-        self.btnSave = QPushButton("Save")
-        self.btnCancel = QPushButton("Cancel")
-        self.btnDelete = QPushButton("Delete")
+        self.btnNew = QPushButton("New"); self.btnNew.setStyleSheet(BTN_ADD_SS)
+        self.btnDuplicate = QPushButton("Duplicate"); self.btnDuplicate.setStyleSheet(BTN_SS)
+        self.btnEdit = QPushButton("Edit"); self.btnEdit.setStyleSheet(BTN_SS)
+        self.btnSave = QPushButton("Save"); self.btnSave.setStyleSheet(BTN_ADD_SS)
+        self.btnCancel = QPushButton("Cancel"); self.btnCancel.setStyleSheet(BTN_SS)
+        self.btnDelete = QPushButton("Delete"); self.btnDelete.setStyleSheet(BTN_DEL_SS)
         
         l.addStretch(1)
         l.addWidget(self.btnNew)
@@ -323,7 +327,7 @@ class ProcedureManagementWidget(QWidget):
         try:
             with db_manager.get_connection() as conn:
                 # Devices
-                sql = f"""SELECT EquipmentID, {db_manager.sql_concat('Identifier', "' --- '", 'EquipmentName')} FROM Equipment WHERE CategoryID = :cid ORDER BY EquipmentID"""
+                sql = f"""SELECT EquipmentID, {db_manager.sql_concat("COALESCE(Identifier, '')", "' --- '", 'EquipmentName')} FROM Equipment WHERE CategoryID = :cid ORDER BY EquipmentID"""
                 self.cmbDefaultDeviceID.clear(); self.cmbDefaultDeviceID.addItem("", None)
                 for r in conn.execute(text(sql), {"cid": cid}): self.cmbDefaultDeviceID.addItem(r[1], r[0])
                 
@@ -593,6 +597,14 @@ class ProcedureManagementWidget(QWidget):
                 from PyQt5.QtWidgets import QMessageBox
                 QMessageBox.warning(self, 'Not Available',
                                     'ngam_ng_template_editor.py not found.')
+        elif cid == 19:                          # AMS_Measurement -> wheel template
+            if AmsWheelTemplateEditorDialog:
+                d = AmsWheelTemplateEditorDialog(self.current_procedure_id, self.txtProcedureName.text(), self)
+                if d.exec_(): self.populate_form(self.current_procedure_id)
+            else:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self, 'Not Available',
+                                    'ams_wheel_template_editor_gui.py not found.')
 
     def on_edit_measurables(self):
         if MeasurablesEditorDialog: MeasurablesEditorDialog(self.current_procedure_id, self).exec_()

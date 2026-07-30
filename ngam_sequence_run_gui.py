@@ -40,6 +40,7 @@ from sqlalchemy import text
 from shared_utils import check_employee_privilege, normalize_login_name, get_current_user_id
 from gui_utils import show_message
 from validation_gui import QCStatusWidget
+from sample_label_gui import SampleLabelDialog, analysis_spec
 
 
 # ─────────────────────────────── column constants ────────────────────────────
@@ -211,31 +212,21 @@ class NGAMSequenceRunWindow(QDialog):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── header strip ──────────────────────────────────────────────────────
-        hdr_strip = QLabel(f"  3He Sequence / Measurement Run   #{self._run_id}")
-        hdr_strip.setFixedHeight(30)
-        hdr_strip.setStyleSheet(
-            f"background:{_HDR_BG}; color:white; font-weight:bold; font-size:13px;"
+        # ── header bar: title + status + command buttons (top) ───────────────
+        hdr_w = QFrame()
+        hdr_w.setStyleSheet(f"background:{_HDR_BG};")
+        hdr = QHBoxLayout(hdr_w)
+        hdr.setContentsMargins(10, 6, 10, 6)
+
+        title_lbl = QLabel(f"  3He Sequence / Measurement Run   #{self._run_id}")
+        title_lbl.setStyleSheet(
+            "color:white; font-weight:bold; font-size:13px; background:transparent;"
         )
-        root.addWidget(hdr_strip)
-
-        # ── body ──────────────────────────────────────────────────────────────
-        body = QVBoxLayout()
-        body.setContentsMargins(10, 8, 10, 8)
-        body.setSpacing(8)
-        root.addLayout(body, 1)
-
-        body.addWidget(self._build_header_group())
-        body.addWidget(self._build_data_tabs(), 1)
-
-        # ── footer ────────────────────────────────────────────────────────────
-        ftr_w = QFrame()
-        ftr_w.setStyleSheet(f"background:{_PANEL_BG}; border-top:1px solid #AAB8CC;")
-        ftr = QHBoxLayout(ftr_w)
-        ftr.setContentsMargins(10, 6, 10, 6)
+        hdr.addWidget(title_lbl)
 
         self.lblFooter = QLabel("")
-        self.lblFooter.setStyleSheet("color:#444;")
+        self.lblFooter.setStyleSheet("color:#B0BEC5; background:transparent;")
+        hdr.addWidget(self.lblFooter, 1)
 
         self.btnQCReview = QPushButton("QC / Validate")
         self.btnQCReview.setFixedHeight(30)
@@ -284,6 +275,17 @@ class NGAMSequenceRunWindow(QDialog):
         """)
         self.btnImportMS.clicked.connect(self._open_import_dialog)
 
+        self.btnPrintLabels = QPushButton("Print Labels")
+        self.btnPrintLabels.setFixedHeight(30)
+        self.btnPrintLabels.setMinimumWidth(110)
+        self.btnPrintLabels.setStyleSheet("""
+            QPushButton { background:#0288D1; color:white; font-weight:bold;
+                          border:none; padding:4px 18px; border-radius:4px; }
+            QPushButton:hover { background:#01579B; }
+            QPushButton:disabled { background:#aab8cc; color:#7f8c8d; }
+        """)
+        self.btnPrintLabels.clicked.connect(self._print_sequence_labels)
+
         btnClose = QPushButton("Close")
         btnClose.setFixedHeight(30)
         btnClose.setMinimumWidth(80)
@@ -294,17 +296,27 @@ class NGAMSequenceRunWindow(QDialog):
         """)
         btnClose.clicked.connect(self.reject)
 
-        ftr.addWidget(self.lblFooter, 1)
-        ftr.addWidget(self.btnEditHeader)
-        ftr.addSpacing(4)
-        ftr.addWidget(self.btnSaveHeader)
-        ftr.addSpacing(16)
-        ftr.addWidget(self.btnImportMS)
-        ftr.addSpacing(8)
-        ftr.addWidget(self.btnQCReview)
-        ftr.addSpacing(8)
-        ftr.addWidget(btnClose)
-        root.addWidget(ftr_w)
+        hdr.addWidget(self.btnEditHeader)
+        hdr.addSpacing(4)
+        hdr.addWidget(self.btnSaveHeader)
+        hdr.addSpacing(16)
+        hdr.addWidget(self.btnImportMS)
+        hdr.addSpacing(8)
+        hdr.addWidget(self.btnQCReview)
+        hdr.addSpacing(8)
+        hdr.addWidget(self.btnPrintLabels)
+        hdr.addSpacing(8)
+        hdr.addWidget(btnClose)
+        root.addWidget(hdr_w)
+
+        # ── body ──────────────────────────────────────────────────────────────
+        body = QVBoxLayout()
+        body.setContentsMargins(10, 8, 10, 8)
+        body.setSpacing(8)
+        root.addLayout(body, 1)
+
+        body.addWidget(self._build_header_group())
+        body.addWidget(self._build_data_tabs(), 1)
 
     def _build_header_group(self) -> QGroupBox:
         grp = QGroupBox("Run Details")
@@ -710,6 +722,40 @@ class NGAMSequenceRunWindow(QDialog):
         """Switch to the QC / Validation tab and refresh the widget."""
         self._qc_widget.refresh()
         self._tabs.setCurrentIndex(2)
+
+    def _print_sequence_labels(self):
+        """Fetch samples for this 3He sequence run and open the QR label printer."""
+        try:
+            with db_manager.get_connection() as conn:
+                rows = conn.execute(text("""
+                    SELECT sl.positioninrun,
+                           a.prefix, a.sampleid, s.sname,
+                           sl.analysisid
+                    FROM   ngam.ng3hesequenceloadlist sl
+                    JOIN   public.analysis a ON a.analysisid = sl.analysisid
+                    JOIN   public.sample   s ON s.sampleid   = a.sampleid
+                                             AND s.prefix     = a.prefix
+                    WHERE  sl.runid = :r
+                    ORDER  BY sl.positioninrun
+                """), {"r": self._run_id}).fetchall()
+        except Exception as exc:
+            logging.error("Sequence label fetch: %s", exc)
+            show_message(self, "Error", str(exc))
+            return
+        if not rows:
+            show_message(self, "No Data", "No samples found for this run.")
+            return
+        specs = [
+            analysis_spec(
+                prefix=r.prefix or "",
+                sample_id=str(r.sampleid),
+                analysis_id=str(r.analysisid),
+                container_num=f"Pos {r.positioninrun}",
+                job_type="Sequence",
+            )
+            for r in rows
+        ]
+        SampleLabelDialog.show_batch(specs, parent=self).exec_()
 
 
 if __name__ == "__main__":

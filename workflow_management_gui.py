@@ -461,7 +461,7 @@ class WorkflowManagementWidget(QWidget):
     def load_category_combo(self):
         try:
             with db_manager.get_connection() as conn:
-                sql = f"""SELECT ID, {db_manager.sql_concat("ID", "': '", "sName")} FROM Job_Procedure WHERE ID In (3,4,5,11,14) ORDER BY ID"""
+                sql = f"""SELECT ID, {db_manager.sql_concat("ID", "': '", "sName")} FROM Job_Procedure WHERE ID In (3,4,5,11,14,19) ORDER BY ID"""
                 self.cmbCategoryID.blockSignals(True)
                 self.cmbCategoryID.clear()
                 for r in conn.execute(text(sql)):
@@ -481,16 +481,20 @@ class WorkflowManagementWidget(QWidget):
         if cid in [1, 2, 3]:     self.current_media_id = 200
         elif cid in [12, 13, 14]: self.current_media_id = 300
         elif cid in [10, 11]:     self.current_media_id = 202
+        elif cid == 19:           self.current_media_id = 2
         self.load_selection_list(self.current_media_id)
-        show_media = (cid == 5)
+        show_media = cid in (5, 19)
         self.cmbMedia.setVisible(show_media)
         self.media_label.setVisible(show_media)
-        if show_media: self.load_media_combo()
+        if show_media:
+            self.load_media_combo(cid)
+            self.on_med()
 
-    def load_media_combo(self):
+    def load_media_combo(self, cid=5):
         try:
             with db_manager.get_connection() as conn:
-                sql = f"""SELECT MediaID, {db_manager.sql_concat("Prefix", "' : '", "medianame")} FROM Media WHERE MediaID=1 OR MediaID=58 ORDER BY Prefix DESC, MediaID"""
+                media_filter = "MediaID IN (2,4,25,1018)" if cid == 19 else "(MediaID=1 OR MediaID=58)"
+                sql = f"""SELECT MediaID, {db_manager.sql_concat("Prefix", "' : '", "medianame")} FROM Media WHERE {media_filter} ORDER BY Prefix DESC, MediaID"""
                 self.cmbMedia.blockSignals(True)
                 self.cmbMedia.clear()
                 for r in conn.execute(text(sql)):

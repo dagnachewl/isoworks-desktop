@@ -51,7 +51,7 @@ QDateEdit::down-arrow { image: none; width: 0; height: 0; border-left: 5px solid
 _TABLE_STYLE = """
 QTableView { border:1px solid #d0d0d0; background:white;
              gridline-color:#cccccc; selection-background-color:#DDEEFF; }
-QTableView::item { padding:4px; }
+QTableView::item { padding:1px 4px; }
 QHeaderView::section { background:#f0f0f0; font-weight:bold;
                         border:1px solid #d0d0d0; padding:4px; }
 """
@@ -523,7 +523,9 @@ class PhysicalPrepRunDetailsWindow(QDialog):
             h = self._table.horizontalHeader()
             h.setSectionResizeMode(C.SAMPLE, QHeaderView.Stretch)
             h.setSectionResizeMode(C.NOTES,  QHeaderView.Stretch)
-            self._table.resizeRowsToContents()
+            self._table.setColumnWidth(C.METHOD, 130)
+            self._table.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+            self._table.verticalHeader().setDefaultSectionSize(22)
         finally:
             self._updating = False
 
