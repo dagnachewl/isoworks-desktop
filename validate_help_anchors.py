@@ -3,7 +3,7 @@
 validate_help_anchors.py
 ========================
 Validates that all anchor tags mapped in `help_browser.py` exist in the
-generated HTML from `IsoWorks_pyLIMS_User_Manual.md`.
+generated HTML from `IsoWorks_Desktop_User_Manual.md`.
 
 Usage:
     python validate_help_anchors.py
@@ -20,7 +20,7 @@ except ImportError:
     sys.exit(1)
 
 HELP_BROWSER_PATH = "help_browser.py"
-MANUAL_PATH = os.path.join("Manuals", "IsoWorks_pyLIMS_User_Manual.md")
+MANUAL_PATH = os.path.join("Manuals", "IsoWorks_Desktop_User_Manual.md")
 
 def get_help_topics(filepath: str) -> dict:
     """Safely extracts the HELP_TOPICS dictionary using the AST."""

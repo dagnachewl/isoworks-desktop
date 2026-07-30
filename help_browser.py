@@ -16,7 +16,7 @@ Or use the convenience button factory::
     btn = make_help_button(self, "trims_lsc")
     toolbar_layout.addWidget(btn)
 
-Topic keys map to anchors in IsoWorks_pyLIMS_User_Manual.md.
+Topic keys map to anchors in IsoWorks_Desktop_User_Manual.md.
 Add new keys to HELP_TOPICS as new modules are created.
 """
 from __future__ import annotations
@@ -33,7 +33,89 @@ from PyQt5.QtGui import QKeySequence
 
 # ── Manual location ────────────────────────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_MANUAL_MD = os.path.join(_HERE, "Manuals", "IsoWorks_pyLIMS_User_Manual.md")
+_MANUAL_MD = os.path.join(_HERE, "Manuals", "IsoWorks_Desktop_User_Manual.md")
+
+_STYLE = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-color: #ffffff;
+    --text-color: #334155;
+    --h1-color: #0f172a;
+    --h2-color: #1e3a8a;
+    --h3-color: #2563eb;
+    --border-color: #e2e8f0;
+    --table-hdr-bg: #f8fafc;
+    --table-hdr-text: #1e293b;
+    --table-row-even: #f8fafc;
+    --code-bg: #f1f5f9;
+    --code-color: #b91c1c;
+    --blockquote-bg: #eff6ff;
+    --blockquote-border: #3b82f6;
+    --blockquote-text: #1e40af;
+    --link-color: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-color: #0b0f19;
+      --text-color: #cbd5e1;
+      --h1-color: #f8fafc;
+      --h2-color: #60a5fa;
+      --h3-color: #93c5fd;
+      --border-color: #1e293b;
+      --table-hdr-bg: #1e293b;
+      --table-hdr-text: #cbd5e1;
+      --table-row-even: #0f172a;
+      --code-bg: #1e293b;
+      --code-color: #fda4af;
+      --blockquote-bg: rgba(59, 130, 246, 0.1);
+      --blockquote-border: #3b82f6;
+      --blockquote-text: #93c5fd;
+      --link-color: #60a5fa;
+    }
+  }
+
+  body {
+    font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    max-width: 840px;
+    margin: 40px auto;
+    padding: 0 24px;
+    color: #334155;
+    color: var(--text-color);
+    background-color: #ffffff;
+    background-color: var(--bg-color);
+  }
+
+  h1 { font-size: 1.8em; color: #0b3d91; color: var(--h1-color); border-bottom: 2px solid #e2e8f0; border-bottom-color: var(--border-color); padding-bottom: 8px; margin-top: 1.6em; font-weight: 700; }
+  h2 { font-size: 1.4em; color: #1e3a8a; color: var(--h2-color); border-bottom: 1px solid #e2e8f0; border-bottom-color: var(--border-color); padding-bottom: 6px; margin-top: 1.4em; font-weight: 600; }
+  h3 { font-size: 1.15em; color: #2563eb; color: var(--h3-color); margin-top: 1.2em; font-weight: 600; }
+  h4 { font-size: 1.0em; color: #475569; color: var(--text-color); margin-top: 1.0em; font-weight: 600; }
+  
+  p, li { margin-bottom: 0.6em; }
+  ul, ol { margin-top: 0.4em; margin-bottom: 1.6em; padding-left: 24px; }
+  li { margin-bottom: 0.4em; }
+
+  table { border-collapse: collapse; width: 100%; margin: 1.5em 0; font-size: 0.92em; border: 1px solid #e2e8f0; border-color: var(--border-color); border-radius: 6px; overflow: hidden; }
+  th { background-color: #f8fafc; background-color: var(--table-hdr-bg); color: #1e293b; color: var(--table-hdr-text); font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 2px solid #e2e8f0; border-bottom-color: var(--border-color); }
+  td { padding: 8px 14px; border-bottom: 1px solid #e2e8f0; border-bottom-color: var(--border-color); vertical-align: top; }
+  tr:nth-child(even) td { background-color: #f8fafc; background-color: var(--table-row-even); }
+  
+  code { background-color: #f1f5f9; background-color: var(--code-bg); color: #b91c1c; color: var(--code-color); padding: 2px 6px; border-radius: 4px; font-family: "Fira Code", "Consolas", monospace; font-size: 0.9em; }
+  pre { background-color: #f1f5f9; background-color: var(--code-bg); padding: 14px; border-radius: 6px; font-size: 0.88em; overflow-x: auto; border: 1px solid #e2e8f0; border-color: var(--border-color); margin: 1.2em 0; }
+  pre code { padding: 0; background: none; color: inherit; font-size: inherit; }
+
+  blockquote { border-left: 4px solid #3b82f6; border-left-color: var(--blockquote-border); margin: 1.2em 0; padding: 8px 16px; background-color: #eff6ff; background-color: var(--blockquote-bg); color: #1e40af; color: var(--blockquote-text); border-radius: 0 6px 6px 0; }
+  a { color: #2563eb; color: var(--link-color); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  hr { border: none; border-top: 1px solid #e2e8f0; border-top-color: var(--border-color); margin: 2em 0; }
+  img { max-width: 75%; height: auto; display: block; margin: 18px auto; border-radius: 8px; border: 1px solid #1e293b; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .mermaid { margin: 1em 0; text-align: center; }
+</style>
+"""
 
 # ── Topic → anchor mapping ─────────────────────────────────────────────────────
 # Keys match the module keys defined in launcher.py.
@@ -43,48 +125,48 @@ _MANUAL_MD = os.path.join(_HERE, "Manuals", "IsoWorks_pyLIMS_User_Manual.md")
 HELP_TOPICS: dict[str, str] = {
     # Top-level
     "intro":                        "1-introduction",
-    "dashboard":                    "3-dashboard",
+    "dashboard":                    "4-dashboard",
     # Sample management
-    "import_submission":            "41-import-new-submission",
-    "submission_list":              "42-submission-management",
-    "workflow_assign":              "43-stage-samples-to-tba",
-    "samples_tba":                  "44-manage-analysis-queue",
+    "import_submission":            "51-import-new-submission",
+    "submission_list":              "52-submission-management",
+    "workflow_assign":              "53-stage-samples-to-tba",
+    "samples_tba":                  "54-manage-analysis-queue",
     # SIAM
-    "siam_preanalysis":             "51-pre-analysis-batches-major-ions-nox-screening",
-    "siam_run_list":                "52-siam-runs",
+    "siam_preanalysis":             "61-pre-analysis-batches-major-ions-nox-screening",
+    "siam_run_list":                "62-siam-runs",
     "siam_create_run":              "creating-a-new-siam-run-batch-setup",
-    "create_siam_run_processor":    "53-process-run-file-based-processor",
+    "create_siam_run_processor":    "63-process-run-file-based-processor",
     # TRIMS
-    "trims_distillation":           "61-primary-distillation",
+    "trims_distillation":           "71-primary-distillation",
     "trims_create_distillation":    "creating-a-distillation-batch",
-    "trims_enrichment":             "62-electrolytic-enrichment",
+    "trims_enrichment":             "72-electrolytic-enrichment",
     "trims_create_enrichment":      "creating-an-enrichment-run",
-    "trims_lsc":                    "63-lsc-runs",
+    "trims_lsc":                    "73-lsc-runs",
     "trims_create_lsc":             "creating-an-lsc-run",
-    "trims_lsc_eval":               "64-evaluation-finalizing-lsc-data",
+    "trims_lsc_eval":               "74-evaluation-finalizing-lsc-data",
     # NGAM
-    "ngam_ingrowth":                "71-3he-ingrowth-runs",
+    "ngam_ingrowth":                "81-3he-ingrowth-runs",
     "ngam_create_ingrowth":         "creating-an-ingrowth-run",
-    "ngam_extraction":              "72-3he-extraction-runs",
+    "ngam_extraction":              "82-3he-extraction-runs",
     "ngam_create_extraction":       "creating-an-extraction-run",
     "ngam_line_efficiency":         "extraction-line-efficiency-calibrations",
-    "ngam_sequence":                "73-3he-measurement-runs-helix-sft",
+    "ngam_sequence":                "83-3he-measurement-runs-helix-sft",
     "ngam_create_sequence":         "creating-a-measurement-sequence",
-    "ngam_ng_sequence":             "74-ng-ms-sequence-runs-noblecontrol-qtegra",
+    "ngam_ng_sequence":             "84-ng-ms-sequence-runs-noblecontrol-qtegra",
     "ngam_create_ng_sequence":      "creating-an-ng-sequence-run",
     "ngam_ng_import":               "importing-and-processing-ng-data",
-    "ngam_eqw_cf":                  "75-eqw-correction-factors",
+    "ngam_eqw_cf":                  "85-eqw-correction-factors",
     # QA/QC
-    "qaqc":                         "8-qaqc-module",
+    "qaqc":                         "10-qaqc-module",
     # Settings
-    "db_connection":                "91-database-connection",
-    "employee_mgmt":                "92-employee-management",
-    "customer_mgmt":                "93-customer-management",
-    "equipment_mgmt":               "94-equipment-management",
-    "procedure_mgmt":               "95-procedure-management",
-    "workflow_mgmt":                "96-workflow-management",
-    "reference_mgmt":               "97-references-controls",
-    "global_params":                "98-global-parameters",
+    "db_connection":                "31-database-connection",
+    "employee_mgmt":                "32-employee-management",
+    "customer_mgmt":                "33-customer-management",
+    "equipment_mgmt":               "34-equipment-management",
+    "procedure_mgmt":               "35-procedure-management",
+    "workflow_mgmt":                "36-workflow-management",
+    "reference_mgmt":               "37-references-controls",
+    "global_params":                "38-global-parameters",
     # CIMS
     "cims":                         "110-consumables-inventory-management",
     # Appendices
@@ -130,31 +212,7 @@ def _md_to_html(md_path: str) -> str:
 <html>
 <head>
 <meta charset="utf-8">
-<style>
-  body  {{ font-family: "Segoe UI", Arial, sans-serif; font-size: 13px;
-           line-height: 1.55; margin: 16px 20px; color: #1a1a2e; }}
-  h1    {{ font-size: 1.5em; color: #0B3D91; border-bottom: 2px solid #0B3D91;
-           padding-bottom: 4px; margin-top: 1.4em; }}
-  h2    {{ font-size: 1.2em; color: #1a4a8a; border-bottom: 1px solid #c0d0e8;
-           padding-bottom: 2px; margin-top: 1.2em; }}
-  h3    {{ font-size: 1.05em; color: #2c5f9e; margin-top: 1em; }}
-  h4    {{ font-size: 0.97em; color: #3a6aaa; margin-top: 0.8em; }}
-  table {{ border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.95em; }}
-  th    {{ background: #e8eef8; color: #1a3a6a; text-align: left;
-           padding: 5px 8px; border: 1px solid #b8c8e0; }}
-  td    {{ padding: 4px 8px; border: 1px solid #d0dcea; vertical-align: top; }}
-  tr:nth-child(even) td {{ background: #f5f8fd; }}
-  code  {{ background: #f0f4f8; padding: 1px 4px; border-radius: 3px;
-           font-family: "Consolas", monospace; font-size: 0.92em; color: #c0392b; }}
-  pre   {{ background: #f0f4f8; padding: 10px; border-radius: 4px;
-           font-size: 0.88em; overflow-x: auto; border: 1px solid #d0dcea; }}
-  blockquote {{ border-left: 3px solid #3B82F6; margin: 0.8em 0;
-                padding: 6px 12px; background: #eff6ff; color: #1e40af;
-                border-radius: 0 4px 4px 0; }}
-  a     {{ color: #1a6ac4; }}
-  li    {{ margin-bottom: 3px; }}
-  hr    {{ border: none; border-top: 1px solid #d0dcea; margin: 1.2em 0; }}
-</style>
+{_STYLE}
 </head>
 <body>
 {html_body}
@@ -280,7 +338,7 @@ def show_help(parent: QWidget | None, topic: str = "") -> None:
     ----------
     parent : QWidget or None
     topic  : module key (e.g. "siam_run_list") or raw anchor
-             (e.g. "52-siam-runs"). Pass "" to open at the top.
+             (e.g. "62-siam-runs"). Pass "" to open at the top.
     """
     if not os.path.isfile(_MANUAL_MD):
         from PyQt5.QtWidgets import QMessageBox

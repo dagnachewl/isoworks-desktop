@@ -14,7 +14,7 @@ Usage
 Arguments
 ---------
   INPUT       Path to the Markdown file to convert.
-              Defaults to IsoWorks_pyLIMS_User_Manual.md in the same
+              Defaults to IsoWorks_Desktop_User_Manual.md in the same
               directory as this script.
 
 Options
@@ -52,7 +52,7 @@ import pathlib
 import markdown
 import latex2mathml.converter
 from playwright.sync_api import sync_playwright
-_DEFAULT_MD = pathlib.Path(__file__).parent / "IsoWorks_pyLIMS_User_Manual.md"
+_DEFAULT_MD = pathlib.Path(__file__).parent / "IsoWorks_Desktop_User_Manual.md"
 
 CSS = """
 html, body {

@@ -43,9 +43,13 @@ from PyQt5.QtGui import (
 from sample_label_gui import SampleLabelDialog, analysis_spec
 
 from sqlalchemy import text
+from db_core import db_manager
 from shared_utils import check_employee_privilege, set_status, normalize_login_name, get_current_user_id
 from gui_utils import show_message
 from balance_serial import BalanceSerialReader, load_balance_equipment, list_available_ports
+
+try: from equipment_management_gui import open_equipment_management_dialog
+except ImportError: open_equipment_management_dialog = None
 
 
 # ─────────────────────────────── column constants ────────────────────────────
@@ -319,14 +323,24 @@ class NGAMIngrowthRunWindow(QDialog):
         self.lblBalanceDot.setStyleSheet("color:#B0BEC5; font-size:14px;")
         self.lblBalanceReading = QLabel("")
         self.lblBalanceReading.setStyleSheet("color:#444; font-family:monospace;")
+        self.lblBalanceEmpty = QLabel("No Analytical Balance registered —")
+        self.lblBalanceEmpty.setStyleSheet("color:#888;")
+        self.btnAddBalance = QPushButton("+ Add Balance")
+        self.btnAddBalance.setToolTip("Register a new Analytical Balance in Equipment Management")
+        self.btnAddBalance.clicked.connect(self._open_add_balance)
         self.balance_reader = BalanceSerialReader(self)
         self.balance_reader.stableReading.connect(self._on_balance_reading)
         self.balance_reader.statusChanged.connect(self._on_balance_status)
         self.balance_reader.connectionChanged.connect(self._on_balance_connection_changed)
 
         self._build_ui()
-        for eid, name in load_balance_equipment():
+        balances = load_balance_equipment()
+        for eid, name in balances:
             self.cmbBalance.addItem(name, eid)
+        has_balances = bool(balances)
+        self.lblBalanceEmpty.setVisible(not has_balances)
+        for w in (self.cmbBalance, self.cmbPort, self.btnBalanceRefreshPorts, self.btnBalanceConnect):
+            w.setVisible(has_balances)
 
         try:
             self._check_privileges()
@@ -362,10 +376,12 @@ class NGAMIngrowthRunWindow(QDialog):
         balance_bar = QHBoxLayout(self.balance_bar_w)
         balance_bar.setContentsMargins(0, 0, 0, 4)
         balance_bar.addWidget(QLabel("<b>Balance:</b>"))
+        balance_bar.addWidget(self.lblBalanceEmpty)
         balance_bar.addWidget(self.cmbBalance)
         balance_bar.addWidget(self.cmbPort)
         balance_bar.addWidget(self.btnBalanceRefreshPorts)
         balance_bar.addWidget(self.btnBalanceConnect)
+        balance_bar.addWidget(self.btnAddBalance)
         balance_bar.addWidget(self.lblBalanceDot)
         balance_bar.addWidget(self.lblBalanceReading)
         balance_bar.addStretch(1)
@@ -717,6 +733,12 @@ class NGAMIngrowthRunWindow(QDialog):
         idx = self.cmbPort.findText(current)
         if idx >= 0:
             self.cmbPort.setCurrentIndex(idx)
+
+    def _open_add_balance(self):
+        if open_equipment_management_dialog:
+            open_equipment_management_dialog(self, start_create_type_id=11)
+        else:
+            show_message(self, "Not Available", "equipment_management_gui.py not found.")
 
     def _toggle_balance_connect(self):
         if self.balance_reader.connected:

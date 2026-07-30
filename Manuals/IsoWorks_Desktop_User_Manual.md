@@ -1,85 +1,90 @@
-# IsoWorks pyLIMS — User Manual
+# IsoWorks Desktop Client — User Manual
 
-**Version:** 2025 (PyQt5 / PostgreSQL edition)
-**Audience:** Laboratory analysts, technicians, and administrators
 
----
+
 
 ## Table of Contents
 
 1. [Introduction](#1-introduction)
 2. [Getting Started](#2-getting-started)
-   2.1 [System Requirements](#21-system-requirements)  
-   2.2 [First Launch & Database Connection](#22-first-launch-database-connection)  
-   2.3 [Application Interface Overview](#23-application-interface-overview)  
-   2.4 [Initial Setup Checklist](#24-initial-setup-checklist)  
-3. [Dashboard](#3-dashboard)
-4. [Sample Management](#4-sample-management)
-   4.1 [Import New Submission](#41-import-new-submission)  
-   4.2 [Submission Management](#42-submission-management)  
-   4.3 [Stage Samples to TBA](#43-stage-samples-to-tba)  
-   4.4 [Manage Analysis Queue](#44-manage-analysis-queue)  
-5. [SIAM — Stable Isotope Analysis Module](#5-siam-stable-isotope-analysis-module)
-   5.1 [Pre-Analysis Batches (Major Ions / NOx Screening)](#51-pre-analysis-batches-major-ions-nox-screening)  
-   5.2 [SIAM Runs](#52-siam-runs)  
-   5.3 [Process Run (File-Based Processor)](#53-process-run-file-based-processor)  
-6. [TRIMS — Tritium Analysis Module](#6-trims-tritium-analysis-module)
-   6.1 [Primary Distillation](#61-primary-distillation)  
-   6.2 [Electrolytic Enrichment](#62-electrolytic-enrichment)  
-   6.3 [LSC Runs](#63-lsc-runs)  
-   6.4 [Evaluation & Finalizing LSC Data](#64-evaluation-finalizing-lsc-data)  
-7. [NGAM — Noble Gas Analysis Module](#7-ngam-noble-gas-analysis-module)
-   7.1 [3He Ingrowth Runs](#71-3he-ingrowth-runs)  
-   7.2 [3He Extraction Runs](#72-3he-extraction-runs)  
-   7.3 [3He Measurement Runs (Helix SFT)](#73-3he-measurement-runs-helix-sft)  
-   7.4 [NG MS Sequence Runs (NobleControl / Qtegra)](#74-ng-ms-sequence-runs-noblecontrol-qtegra)  
-   &emsp;7.4.1 [NG Results View Layout](#741-ng-results-view-layout)  
-   &emsp;7.4.2 [Data Reduction Pipeline](#742-data-reduction-pipeline)  
-   7.5 [EQW Correction Factors](#75-eqw-correction-factors)  
-   &emsp;7.5.1 [Overview](#751-overview)  
-   &emsp;7.5.2 [Step 1 — Register and Extract EQW Samples](#752-step-1-register-and-extract-eqw-samples)  
-   &emsp;7.5.3 [Step 2 — Enter Extraction Conditions](#753-step-2-enter-extraction-conditions)  
-   &emsp;7.5.4 [Step 3 — Run the MS Sequence and Import](#754-step-3-run-the-ms-sequence-and-import)  
-   &emsp;7.5.5 [Step 4 — Review CFs and Lock Outliers](#755-step-4-review-cfs-and-lock-outliers)  
-   &emsp;7.5.6 [Step 5 — Create a CF Template (Admin)](#756-step-5-create-a-cf-template-admin)  
-   &emsp;7.5.7 [Step 6 — Promote to Applied (Admin)](#757-step-6-promote-to-applied-admin)  
-   &emsp;7.5.8 [CF Summary Strip](#758-cf-summary-strip)  
-8. [QA/QC Module](#8-qaqc-module)
-10. [AMS ¹⁴C Module](#10-ams-14c-module)  
-   10.1 [Graphitisation](#101-graphitisation)  
-   10.2 [AMS Runs](#102-ams-runs)  
-   8.1 [Overview & Navigation](#81-overview-navigation)  
-   8.2 [Spiked Cells — 3H Enrichment Parameter](#82-spiked-cells-3h-enrichment-parameter)  
-   8.3 [Deuterium Recovery — 2H Enrichment](#83-deuterium-recovery-2h-enrichment)  
-   8.4 [LS Counter — Reference Standard CPM](#84-ls-counter-reference-standard-cpm)  
-   8.5 [Lab Air Moisture & Control Sample](#85-lab-air-moisture-control-sample)  
-   8.6 [Reading the Control Chart](#86-reading-the-control-chart)  
-   8.7 [Exporting QA/QC Data](#87-exporting-qaqc-data)  
-9. [Settings & Administration](#9-settings-administration)
-   9.1 [Database Connection](#91-database-connection)  
-   9.2 [Employee Management](#92-employee-management)  
-   9.3 [Customer Management](#93-customer-management)  
-   9.4 [Equipment Management](#94-equipment-management)  
-   9.5 [Procedure Management](#95-procedure-management)  
-   9.6 [Workflow Management](#96-workflow-management)  
-   9.7 [References & Controls](#97-references-controls)  
-   9.8 [Global Parameters](#98-global-parameters)  
-   9.9 [Reporting Templates](#99-reporting-templates)  
+    - [2.1 System Requirements](#21-system-requirements)
+    - [2.2 First Launch & Database Connection](#22-first-launch-database-connection)
+    - [2.3 Application Interface Overview](#23-application-interface-overview)
+    - [2.4 Initial Setup Checklist](#24-initial-setup-checklist)
+3. [Settings & Administration](#3-settings-administration)
+    - [3.1 Database Connection](#31-database-connection)
+    - [3.2 Employee Management](#32-employee-management)
+    - [3.3 Customer Management](#33-customer-management)
+    - [3.4 Equipment Management](#34-equipment-management)
+    - [3.5 Procedure Management](#35-procedure-management)
+    - [3.6 Workflow Management](#36-workflow-management)
+    - [3.7 References & Controls](#37-references-controls)
+    - [3.8 Global Parameters](#38-global-parameters)
+    - [3.9 Reporting Templates](#39-reporting-templates)
+4. [Dashboard](#4-dashboard)
+    - [Layout](#layout)
+    - [Sample Phase Summary](#sample-phase-summary)
+5. [Sample Management](#5-sample-management)
+    - [5.1 Import New Submission](#51-import-new-submission)
+    - [5.2 Submission Management](#52-submission-management)
+    - [5.3 Stage Samples to TBA](#53-stage-samples-to-tba)
+    - [5.4 Manage Analysis Queue](#54-manage-analysis-queue)
+6. [SIAM — Stable Isotope Analysis Module](#6-siam-stable-isotope-analysis-module)
+    - [6.1 Pre-Analysis Batches (Major Ions / NOx Screening)](#61-pre-analysis-batches-major-ions-nox-screening)
+    - [6.2 SIAM Runs](#62-siam-runs)
+    - [6.3 Process Run (File-Based Processor)](#63-process-run-file-based-processor)
+7. [TRIMS — Tritium Analysis Module](#7-trims-tritium-analysis-module)
+    - [7.1 Primary Distillation](#71-primary-distillation)
+    - [7.2 Electrolytic Enrichment](#72-electrolytic-enrichment)
+    - [7.3 LSC Runs](#73-lsc-runs)
+    - [7.4 Evaluation & Finalizing LSC Data](#74-evaluation-finalizing-lsc-data)
+8. [NGAM — Noble Gas Analysis Module](#8-ngam-noble-gas-analysis-module)
+    - [8.1 3He Ingrowth Runs](#81-3he-ingrowth-runs)
+    - [8.2 3He Extraction Runs](#82-3he-extraction-runs)
+    - [8.3 3He Measurement Runs (Helix SFT)](#83-3he-measurement-runs-helix-sft)
+    - [8.4 NG MS Sequence Runs (NobleControl / Qtegra)](#84-ng-ms-sequence-runs-noblecontrol-qtegra)
+    - [8.4.2 Data Reduction Pipeline](#842-data-reduction-pipeline)
+    - [8.4.4 BG Proxy Mode — ⁴He Background Replacement](#844-bg-proxy-mode-⁴he-background-replacement)
+    - [8.4.5 Inlet Role Classification (B / L / R)](#845-inlet-role-classification-b-l-r)
+    - [8.4.6 Reprocess Analysis Plot Viewer](#846-reprocess-analysis-plot-viewer)
+    - [8.4.7 Gauge tab and Gauge Signal trace isolation](#847-gauge-tab-and-gauge-signal-trace-isolation)
+    - [8.4.8 Per-Isotope Fit Controls and Outlier Management](#848-per-isotope-fit-controls-and-outlier-management)
+    - [8.4.8 Ratio Signals tab](#848-ratio-signals-tab)
+    - [Technical Reference](#technical-reference)
+    - [8.5 EQW Correction Factors](#85-eqw-correction-factors)
+9. [AMS ¹⁴C Module](#9-ams-¹⁴c-module)
+    - [9.1 Graphitisation](#91-graphitisation)
+    - [9.2 AMS Runs](#92-ams-runs)
+10. [QA/QC Module](#10-qaqc-module)
+    - [10.1 Overview & Navigation](#101-overview-navigation)
+    - [10.2 Spiked Cells — 3H Enrichment Parameter](#102-spiked-cells-3h-enrichment-parameter)
+    - [10.3 Deuterium Recovery — 2H Enrichment](#103-deuterium-recovery-2h-enrichment)
+    - [10.4 LS Counter — Reference Standard CPM](#104-ls-counter-reference-standard-cpm)
+    - [10.5 Lab Air Moisture & Control Sample](#105-lab-air-moisture-control-sample)
+    - [10.6 Reading the Control Chart](#106-reading-the-control-chart)
+    - [10.7 Exporting QA/QC Data](#107-exporting-qaqc-data)
 
 [Appendix A — Privilege Roles](#appendix-a-privilege-roles)  
 [Appendix B — Glossary](#appendix-b-glossary)  
 [Appendix C — Status Indicators](#appendix-c-status-indicators)  
 [Appendix D — Supported File Formats](#appendix-d-supported-file-formats)  
+    - [SIAM / Stable Isotope Import](#siam-stable-isotope-import)
+    - [TRIMS / LSC Import](#trims-lsc-import)
+    - [NGAM / Noble Gas Import](#ngam-noble-gas-import)
 [Appendix E — LSC Counter Setup Guides](#appendix-e-lsc-counter-setup-guides)  
-&emsp;E.1 [Quantulus 1220 (WinQ Software)](#e1-quantulus-1220-winq-software)  
-&emsp;E.2 [Quantulus GCT / Packard TriCarb (QuantaSmart Software)](#e2-quantulus-gct-packard-tricarb-quantasmart-software)  
-&emsp;E.3 [Hidex 300 SL (MikroWin Software)](#e3-hidex-300-sl-mikrowin-software)  
-
----
+    - [E.1 Quantulus 1220 (WinQ Software)](#e1-quantulus-1220-winq-software)
+    - [E.2 Quantulus GCT / Packard TriCarb (QuantaSmart Software)](#e2-quantulus-gct-packard-tricarb-quantasmart-software)
+    - [E.3 Hidex 300 SL (MikroWin Software)](#e3-hidex-300-sl-mikrowin-software)
+[Appendix F — NGAM Linearity & Gauge Calibration: Technical Notes](#appendix-f-ngam-linearity-gauge-calibration-technical-notes)  
+    - [F.1 Why Mass-Spectrometer Signals Are Non-Linear](#f1-why-mass-spectrometer-signals-are-non-linear)
+    - [F.2 Isotope Linearity Correction](#f2-isotope-linearity-correction)
+    - [F.3 Ratio Linearity Correction](#f3-ratio-linearity-correction)
+    - [F.4 Pressure-Gauge Concentration Measurement](#f4-pressure-gauge-concentration-measurement)
+    - [F.5 SRG Gas-Species Correction Factor (σ)](#f5-srg-gas-species-correction-factor-σ)
 
 ## 1. Introduction
 
-**IsoWorks pyLIMS** is a Laboratory Information Management System (LIMS) designed for isotope analysis laboratories, including those participating in IAEA-supported monitoring networks such as GNIP (Global Network of Isotopes in Precipitation). It replaces the legacy MS Access implementation with a cross-platform PyQt5 desktop application backed by a PostgreSQL (or SQL Server) database.
+**IsoWorks pyLIMS** is a Laboratory Information Management System (LIMS) designed for isotope analysis laboratories, including those participating in IAEA-supported monitoring networks such as GNIP (Global Network of Isotopes in Precipitation). It replaces the legacy MS Access implementation with a cross-platform PyQt5 desktop application backed by a PostgreSQL database, optimized for local instrument interfacing, balance serial communication, and offline capability.
 
 IsoWorks manages the full sample lifecycle — from initial client submission through sample preparation, instrumental analysis, data processing, and final reporting — across four analytical domains:
 
@@ -95,6 +100,9 @@ IsoWorks is a **modular platform**: a client-server database serves as the centr
 
 ---
 
+
+
+
 ## 2. Getting Started
 
 ### 2.1 System Requirements
@@ -105,7 +113,7 @@ IsoWorks is a **modular platform**: a client-server database serves as the centr
 | Python | 3.10 or later |
 | Database | PostgreSQL 14+ (primary), SQL Server, or MS Access |
 | Screen resolution | 1280 × 800 minimum; 1920 × 1080 recommended |
-| Label printer | DYMO LabelWriter 450 (optional, for sample labels) |
+| Label printer | Standard Label Printer (USB/Network, for QR code sample labels) |
 
 ### 2.2 First Launch & Database Connection
 
@@ -202,7 +210,301 @@ For a new laboratory installation, complete these one-time setup tasks (in order
 
 ---
 
-## 3. Dashboard
+
+
+
+## 3. Settings & Administration
+
+**Path:** Settings icon (⚙, bottom of icon bar) → sub-module panel
+
+Administrative functions typically used by the laboratory manager or IT administrator. Most sub-modules require elevated privileges. The sub-module panel stays open for quick switching between settings pages.
+
+---
+
+### 3.1 Database Connection
+
+This module establishes the core connection between the IsoWorks PyQt frontend and the SQL database backend (`db_core.py`).
+
+**Available Dialects:**
+
+| Dialect | Connection details required |
+|---------|---------------------------|
+| **PostgreSQL** | Host (e.g., `localhost`), Port (`5432`), Database (`isoworks`), Username, Password |
+| **SQL Server** | File DSN path (`.dsn`) |
+| **MS Access** | File path to an `.accdb` or `.mdb` database file |
+
+#### Operation
+1. Select your database dialect.
+2. Provide the necessary connection strings or credentials. 
+3. Click **Test & Save Connection**. IsoWorks will attempt a test query (`SELECT 1`). 
+4. If successful, the dialect and encrypted credentials are automatically persisted to local OS `QSettings` (`db/dialect`, `db/pg_host`, etc.). 
+
+> **Note:** For PostgreSQL, the application utilizes SQLAlchemy connection pooling. A restart is recommended after changing the active database connection to clear cached queries and ensure all modules sync correctly.
+
+---
+
+### 3.2 Employee Management
+
+Manages laboratory personnel accounts, historical records, and granular access privileges. IsoWorks utilizes a single sign-on (SSO) approach by matching the application user to the active Operating System account.
+
+> **First-user rule:** If no employee record exists in the database when IsoWorks first connects, the application creates an initial administrator account automatically using the current OS login name with full `superadmin` and `IsAdmin` privileges. This bootstrap mechanism ensures you are never locked out of the Settings module on a fresh installation. Add all subsequent users manually through this module.
+
+#### Adding an Employee
+
+1. Click **New Employee**.
+2. **Identity Details:** Fill in Last Name, First (Middle) Name, and Email.
+3. **System Login Name:** *Crucial step.* This must exactly match the OS account name (e.g., the Windows profile name without the domain prefix, or the macOS short username). This is case-insensitive.
+4. **Assign Privileges:** Check the appropriate privilege boxes to grant access to specific analytical pipelines (see Appendix A).
+   - `accesssiam`, `ngamaccess`: Allows creating and processing runs in those modules.
+   - `siamadmin`, `ngamadmin`: Grants destructive permissions (e.g., deleting runs).
+   - `IsAdmin`: Required to create CF templates and promote EQW correction factors.
+   - `superadmin`: Grants global destructive permissions and access to all advanced settings.
+4. Click **Stop Edit → Save**.
+
+> **Tip:** Double-click any existing row in the grid to enter Edit Mode. Once finished, click **Stop Edit** followed by **Save** to commit the changes to the database.
+
+#### Deactivating
+
+If an employee leaves the laboratory, uncheck their **Active** flag. *Do not delete their record.* IsoWorks relies on historical Employee IDs to maintain the audit trail of who created, processed, or evaluated past runs.
+
+---
+
+### 3.3 Customer Management
+
+Manages the list of external clients, internal departments, or collaborating researchers who submit samples.
+
+#### Required Fields
+- **Customer Name:** Full organizational or departmental name.
+- **Short Code:** An abbreviation used for internal reporting or sample prefixes.
+- **Contact Info:** Name, Email, and Phone for the primary liaison. 
+
+Customers populate the dynamic "Submitter" dropdowns inside the **Sample Management → Import New Submission** module. Setting a customer to inactive removes them from the active dropdown lists while preserving historical submissions.
+
+---
+
+### 3.4 Equipment Management
+
+Manages the physical analytical instruments, enrichment lines, and liquid scintillation counters used to process runs. 
+
+| Equipment Type | Examples |
+|---------------|---------|
+| IRMS | Delta V Plus, MAT 253, Picarro L2130-i |
+| Tritium enrichment system | 100-cell electrolysis unit |
+| LSC counter | Hidex 300 SL, Quantulus 1220 |
+| Noble gas MS | MAP 215-50, Helix SFT |
+
+#### Linking to File Formats
+Equipment records are linked to a specific `AnalysisImportFormat` (e.g., "Hidex List", "Isodat Dual Inlet"). This linkage tells IsoWorks which parser algorithm to use when an analyst clicks "Import Data" for a specific machine.
+
+#### Equipment Maintenance Log
+
+Record historical maintenance events (e.g., re-plating cells, source cleaning, detector replacement):
+- Select the equipment → **Maintenance → Add**.
+- Choose the maintenance type and enter date, description, and technician.
+
+IsoWorks supports the following maintenance types in accordance with ISO 17025 equipment management requirements:
+
+| Maintenance Type | Description |
+|-----------------|-------------|
+| **Reactive** | Unplanned maintenance performed in response to an unexpected failure |
+| **Run to Fail** | Equipment intentionally operated until failure before maintenance is performed |
+| **Routine** | Scheduled periodic maintenance (e.g., daily checks, weekly cleaning) |
+| **Corrective** | Corrective action following a documented non-conformance |
+| **Preventive** | Proactive maintenance to prevent foreseeable failures (e.g., annual servicing) |
+| **Condition-based** | Triggered by a measured parameter crossing a defined threshold (e.g., EC, counting efficiency) |
+| **Calibration** | Instrument calibration against a traceable reference standard; requires certificate reference |
+
+The maintenance log is searchable by date range and type, and is included in equipment history reports for audit purposes.
+
+#### TRIMS Electrolysis Cells
+For Tritium electrolysis systems, select the system and navigate to the **Cells** sub-form. Here you can record individual Cell IDs and enter their historical or currently active **Cell Constant (β)** used in enrichment factor calculations.
+
+---
+
+### 3.5 Procedure Management
+
+Procedures (and their underlying Protocols) define the rules, mathematical settings, and column mappings used when parsing and correcting analytical data. They form the bridge between raw instrument output and final LIMS calculations.
+
+#### The Protocol Architecture
+Behind the scenes, Procedures are managed by the `ProtocolManager`. A Protocol consists of two main components:
+1. **Settings (JSON):** The mathematical configuration for the pipeline.
+   - *SIAM:* Linearity models, Memory carryover method (e.g., Fast/Slow Pool), Drift correction axis, and Outlier detection methods (SD, MAD, Huber).
+   - *LSC:* Signal Metric (CPM/DPM), Efficiency Source, Background Mode, Activity Unit (TU vs Bq/L).
+2. **Column Mappings:** Maps raw file headers to expected IsoWorks database fields. 
+   - e.g., Mapping the file header `"CPMroi1"` to the target field `"CPM"`.
+   - Includes flags for whether the mapped column is already *Net* (background-subtracted).
+
+#### Creating/Editing a Protocol
+- Navigate to **Procedure Management** or click **Load Protocol... / Manage Protocols** inside any Run Processor.
+- Select a base **File Format** (e.g., "LGR DT-100").
+- Adjust the analytical logic toggles.
+- Under **Mappings**, define which file columns correspond to the required calculation inputs.
+- Click **Save Protocol**. Marking a protocol as *Default* auto-loads it whenever that specific File Format is selected by an analyst.
+
+> **Audit Trail:** Whenever an analyst processes a run, the system takes an immutable JSON snapshot of the Protocol at that exact moment. This guarantees the mathematical history of a run is preserved even if the central Protocol is later edited.
+
+#### TRIMS-LSC Protocol Configuration Parameters
+
+When configuring an LSC procedure, the following parameters must be set:
+
+| Parameter | Description | Typical Value |
+|-----------|-------------|--------------|
+| **Cocktail size (mL)** | Volume of scintillation cocktail added to each vial | 10–15 mL |
+| **Cocktail type** | Scintillation cocktail product (e.g., Ultima Gold LLT, Insta-Gel Plus) | Lab-specific |
+| **Number of cycles** | How many counting cycles per sample | 2–6 |
+| **Number of cycle repeats** | Repeats of the full cycle set before flagging outliers | 1–3 |
+| **Cycle length (min)** | Duration of each counting cycle | 60–120 min |
+| **Maximum counts per cycle** | Count upper limit; vials that exceed this are flagged as oversaturated | e.g. 999,999 |
+| **Quench indicator** | Method used to track quench: tSIE, SQP(E), or SIS | tSIE (recommended) |
+| **Counting window** | Energy window (keV) for tritium peak — see FOM guidance in [§10.3 LSC Runs](#73-lsc-runs) | Counter-specific |
+| **Background vials** | Number of dedicated background vials per run | 2–4 |
+| **Efficiency standard ID** | Sample ID of the certified counting efficiency standard | Lab-specific |
+
+#### SIAM Procedure Configuration
+
+SIAM procedures define the measurables (isotopes) analysed in each run, together with quality acceptance limits:
+
+| Configuration item | Description |
+|-------------------|-------------|
+| **Measurables** | List of isotopes to report (e.g. δ¹⁸O, δ²H, δ¹³C, δ¹⁵N). Each measurable carries a required repeat count and an acceptance window (e.g. ≤ 0.3 ‰ standard deviation between replicates) |
+| **Number of floating references** | How many standard positions are pre-filled from the reference pool rather than from the TBA queue |
+| **Memory correction** | Enable/disable and choose model (1-reservoir, fast/slow pool, asymptotic) |
+| **Linear drift correction** | Enable/disable and choose axis (run time or injection order) |
+| **Weighted linear normalization** | Two-point normalization using VSMOW + SLAP anchors; applies weighting by certified uncertainty |
+| **Zeta test** | Post-calibration outlier test: rejects measurements where \|z-score\| > 3.0 relative to the certified control values |
+
+Post-corrections are applied in the order listed above (memory → drift → linearity → calibration → zeta). Each step is optional and can be toggled individually per procedure.
+
+#### Load List Templates (SIAM / NGAM)
+Procedures are also used to generate the empty vial grid when creating a new run.
+- **SIAM:** Right-click positions in the tray visually to assign Standards, Unknown Sample Blocks, or specify the number of injections per vial.
+- **NGAM:** The NG Sequence Template Editor maps mass spectrometer **Inlet Ports** to fixed Reference Gases or Sample Slots, dictating exactly how physical plumbing connects to the parsed Qtegra XLSM data.
+
+---
+
+### 3.6 Workflow Management
+
+Workflows define the exact sequence of analytical stages a sample must undergo. They ensure samples route to the correct To Be Analysed (TBA) queue.
+
+#### Creating a Workflow
+
+1. Click **New Workflow**.
+2. Define a name and an abbreviation (e.g., "TRIMS Enrichment", "Dissolved Noble Gases").
+3. Select the target **Media Code** (e.g., Water, Gas).
+4. **Add Workflow Jobs:** These are the sequential steps.
+   - *Example TRIMS sequence:* Job 1 = Primary Distillation; Job 2 = Electrolytic Enrichment; Job 3 = LSC Counting.
+5. Save the workflow. 
+
+Once active, users can assign this workflow to newly imported samples in the **Sample Management** module, staging them to the appropriate analytical queue.
+
+#### Workflow Job Properties
+
+Each job within a workflow has the following configurable properties:
+
+| Property | Description |
+|----------|-------------|
+| **Job Name** | Label shown in the TBA queue and run creation dialogs (e.g. "Primary Distillation") |
+| **Job Order** | Sequential position in the workflow (1, 2, 3, …). Samples advance to Job *n+1* only after Job *n* is complete |
+| **Is Pre-Requisite** | When enabled, samples cannot be assigned to the *next* job until the current job is marked as successfully completed. Prevents premature staging (e.g., enrichment cannot start until distillation passes the EC threshold) |
+| **Module** | Which analytical module handles this job (SIAM, TRIMS, NGAM) |
+| **Target Volume (mL)** | Expected sample volume consumed by this job; used to verify sufficient sample remains |
+
+The **Is Pre-Requisite** flag is particularly important for the TRIMS pipeline, where the distillation quality (EC) must be confirmed before a sample proceeds to electrolytic enrichment.
+
+---
+
+### 3.7 References & Controls
+
+Manages the library of known reference materials (e.g., VSMOW, SLAP2, USGS40) and internal laboratory quality control standards.
+
+#### Configuring a Reference Standard
+- **Identity:** Lab ID (e.g., "W-3"), Long Name, Sample Type, and Matrix.
+- **Certified Values:** Click into the **Reference Data Subform** to add the known isotopic values. You must specify the Isotope (e.g., `d18O`), the True Value, the Uncertainty, and the Scale (e.g., VSMOW, VPDB).
+   - *Note:* The system automatically pivots these into working variables like `d18O_true` and `d18O_uncertainty` during data processing.
+- **Primary Roles:** Designate what this standard is typically used for (Calibration, Drift tracking, Memory modeling, Linearity fitting, or independent Validation/Control).
+
+When a run is processed, IsoWorks automatically queries the database to pull the certified values for any sample ID in the run that matches a registered Reference Material.
+
+---
+
+### 3.8 Global Parameters
+
+A `GlobalValue` key-value table used to store overarching constants, math defaults, and legacy file paths for various modules.
+
+| Key | Example Value | Purpose |
+|-----|--------------|---------|
+| `default_enrichment_factor` | `0.0837` | Default β for new electrolysis cells |
+| `tritium_decay_constant` | `1.782e-9` | λ for ³H (s⁻¹) |
+| `3He_STP_volume` | `22414.0` | STP molar volume (cm³/mol) |
+| `NG_sensitivity_He` | `3.5e-3` | Default He sensitivity (A/ccSTP) |
+| `lsc_tSIE_default` | `750` | Default tSIE window for LSC import |
+| `VOLUME_UNCERTAINTY_COCKTAIL` | `0.02` | Default uncertainty for pipetting LSC cocktails |
+| `TRIMSDBPath` | `C:/TRIMS/Database.accdb` | File path for cross-database TRIMS legacy imports |
+
+To edit: Double-click any row, change the `TokenValue`, click **Stop Edit**, and click **Save**. 
+
+---
+
+### 3.9 Reporting Templates
+
+**Path:** Settings → Reporting Templates
+
+IsoWorks generates ISO 17025–compliant analytical reports for clients. Reporting templates define the layout, laboratory branding, and content rules applied when a report is generated from finalized run data.
+
+#### Report Structure
+
+Each report is composed of six standardised sections:
+
+| Section | Content |
+|---------|---------|
+| **1. Laboratory Header** | Laboratory name, logo, address, accreditation number, and contact details |
+| **2. Report Identification** | Report number, issue date, revision status, and analyst/authoriser names |
+| **3. Sampling Information** | Client name, project name, sample collection site, sampling dates, field parameters (if available: EC, pH, temperature, alkalinity) |
+| **4. Analytical Methods** | Reference to the standard method(s) applied (e.g., ISO 11929, ASTM D5129), instruments used, and procedure revision |
+| **5. Measurement Results** | Table of results with: Sample ID, Sample Name, Result value, Unit, Coverage factor (*k*), Expanded uncertainty, and detection limit logic |
+| **6. Remarks & Signature** | Free-text remarks (e.g., outlier exclusions, re-analysis notes), analyst signature, and authorising officer sign-off |
+
+#### Detection Limit Reporting Logic (Section 10)
+
+IsoWorks automatically applies the following rule for result values near or below the detection limit:
+
+| Condition | Reported value |
+|-----------|---------------|
+| Result > Detection Limit | Numeric value ± expanded uncertainty (k = 2) |
+| Result ≤ Detection Limit | Reported as `< DL` where DL is the method detection limit |
+| Result is negative (within uncertainty) | Reported as `< DL`; flagged in the remarks column |
+
+The detection limit and coverage factor are configurable per procedure and per measurement type.
+
+#### Configuring a Template
+
+1. Navigate to **Settings → Reporting Templates**.
+2. Click **New Template** or select an existing one to edit.
+3. Fill in the **Laboratory Details** panel: name, address, accreditation body, certificate number, logo (PNG/SVG upload).
+4. In the **Result Format** panel:
+   - Select the **Unit** for each measurement type (TU, Bq/L, ‰ VSMOW, etc.).
+   - Set the **Coverage factor** (typically *k* = 2 for 95% confidence).
+   - Enter the **Detection Limit** value per method.
+5. Under **Footer / Remarks**, add any standard disclaimer text that should appear on all reports (e.g., laboratory accreditation statement).
+6. Click **Save Template**. Mark one template as **Default** to pre-select it during report generation.
+
+#### Generating a Report
+
+Reports are generated from the **Finalize Tab** of an LSC run (TRIMS) or from the **Submission Management** screen (all modules):
+
+1. Select the submission or finalized run.
+2. Click **Generate Report**.
+3. Select the reporting template and verify the cover-page information.
+4. Click **Export PDF** to save, or **Print** to send directly to the printer.
+
+Reports are stored in the database with a sequential report number and linked to the relevant run and submission records for full audit traceability.
+
+---
+
+
+
+
+## 4. Dashboard
 
 **Path:** Dashboard icon (top of icon bar)
 
@@ -228,7 +530,10 @@ The Dashboard provides a high-level snapshot of current laboratory workload. It 
 
 ---
 
-## 4. Sample Management
+
+
+
+## 5. Sample Management
 
 **Path:** Sample Management icon → sub-module panel
 
@@ -236,7 +541,7 @@ Sample Management covers everything before a sample enters an instrument run: re
 
 ---
 
-### 4.1 Import New Submission
+### 5.1 Import New Submission
 
 **Sub-module:** Import New Submission
 
@@ -302,7 +607,7 @@ Each sample in the submission can have the following properties:
 
 ---
 
-### 4.2 Submission Management
+### 5.2 Submission Management
 
 **Sub-module:** Submission Management
 
@@ -322,11 +627,11 @@ Lists all submissions in the database with filtering and search.
 - Change the submission status.
 - View the workflow assignment status of each sample.
 - Print or export the sample list.
-- Print DYMO sample labels directly from this window.
+- Print standard QR code sample labels directly from this window to any standard label tape printer.
 
 ---
 
-### 4.3 Stage Samples to TBA
+### 5.3 Stage Samples to TBA
 
 **Sub-module:** Stage Samples to TBA
 
@@ -344,7 +649,7 @@ Assigns an analytical **Workflow** to one or more samples, moving them from *Reg
 
 ---
 
-### 4.4 Manage Analysis Queue
+### 5.4 Manage Analysis Queue
 
 **Sub-module:** Manage Analysis Queue
 
@@ -364,7 +669,10 @@ Use this view to verify which samples are waiting, check counts before creating 
 
 ---
 
-## 5. SIAM — Stable Isotope Analysis Module
+
+
+
+## 6. SIAM — Stable Isotope Analysis Module
 
 **Path:** SIAM icon → flyout → **Water Stable Isotopes** (δ¹⁸O / δD, mediaid = 1) or **Nitrate Stable Isotopes** (δ¹⁵N / δ¹⁸O, mediaid = 58)
 
@@ -387,7 +695,7 @@ IsoWorks automatically detects the file format from the header of the imported d
 
 ---
 
-### 5.1 Pre-Analysis Batches (Major Ions / NOx Screening)
+### 6.1 Pre-Analysis Batches (Major Ions / NOx Screening)
 
 **Sub-module:** Pre-Analysis Batches
 
@@ -427,7 +735,7 @@ Samples that meet the NOx threshold become available for SIAM analysis. Samples 
 
 ---
 
-### 5.2 SIAM Runs
+### 6.2 SIAM Runs
 
 **Sub-module:** Water Stable Isotopes · Nitrate Stable Isotopes
 
@@ -531,7 +839,7 @@ Select a completed run and click **Finalize Run**. The Finalize dialog:
 
 ---
 
-### 5.3 Process Run (File-Based Processor)
+### 6.3 Process Run (File-Based Processor)
 
 **Sub-module:** Process Run (File-Based Processor)
 
@@ -668,7 +976,10 @@ Visual diagnostic charts are available in the **Plots & Reports** tab:
 
 ---
 
-## 6. TRIMS — Tritium Analysis Module
+
+
+
+## 7. TRIMS — Tritium Analysis Module
 
 **Path:** TRIMS icon → sub-module panel
 
@@ -686,7 +997,7 @@ Samples advance through each stage automatically as they are marked complete —
 
 ---
 
-### 6.1 Primary Distillation
+### 7.1 Primary Distillation
 
 **Sub-module:** Primary Distillation
 
@@ -753,12 +1064,12 @@ Open a run (double-click or Load). Click **Edit** to enter edit mode.
 
 #### Labels and Printing
 
-- Click **Labels** to print DYMO sample labels for distilled bottles.
+- Click **Labels** to print standard QR code sample labels for distilled bottles.
 - Click **Print** to print the run report (positions, sample IDs, EC values).
 
 ---
 
-### 6.2 Electrolytic Enrichment
+### 7.2 Electrolytic Enrichment
 
 **Sub-module:** Electrolytic Enrichment
 
@@ -832,7 +1143,7 @@ Cell constants (β) are managed under **Settings → Equipment Management → Ce
 
 ---
 
-### 6.3 LSC Runs
+### 7.3 LSC Runs
 
 **Sub-module:** LSC Runs
 
@@ -932,7 +1243,7 @@ Protocols are managed via **Settings → Procedure Management → LSC Protocol E
 
 ---
 
-### 6.4 Evaluation & Finalizing LSC Data
+### 7.4 Evaluation & Finalizing LSC Data
 
 After importing count data, navigate to the **Evaluate** tab.
 
@@ -977,7 +1288,7 @@ After computation, the **Run Computed Data** header strip updates with summary s
 | **Counter Efficiency** | Mean counting efficiency (%) from efficiency standard vials |
 | **Spike [TU]** | Computed ³H activity of the spike standard vials (TU) |
 | **Standard [TU]** | Computed ³H activity of the working standard vials (TU) |
-| **FOM [E²/B]** | Figure of Merit for the selected CPM window (see [§6.3 LSC Runs](#63-lsc-runs)) |
+| **FOM [E²/B]** | Figure of Merit for the selected CPM window (see [§10.3 LSC Runs](#73-lsc-runs)) |
 | **LC/LLD [CPM]** | Lower Countable Level / Lower Limit of Detection in CPM |
 | **MDA [DPM/kg]** | Minimum Detectable Activity in disintegrations per minute per kilogram |
 
@@ -1025,7 +1336,10 @@ The run is now ready for reporting via **Settings → Reporting Templates** or t
 
 ---
 
-## 7. NGAM — Noble Gas Analysis Module
+
+
+
+## 8. NGAM — Noble Gas Analysis Module
 
 **Path:** NGAM icon → sub-module panel
 
@@ -1051,7 +1365,7 @@ NGAM manages the measurement of dissolved noble gases and tritium via the ³H-³
 
 ---
 
-### 7.1 3He Ingrowth Runs
+### 8.1 3He Ingrowth Runs
 
 **Sub-module:** 3He Ingrowth Runs
 
@@ -1069,7 +1383,7 @@ Water samples are sealed in copper tubes and stored for a defined ingrowth perio
 | Equipment | Sealing apparatus / storage vessel |
 | Samples | Number of samples in the run |
 
-The run list header contains two action buttons: **+ New** (create a new ingrowth run) and **🗑** (delete the currently open run). The delete button is enabled only when a run is open in the detail view. Clicking it reveals an inline confirmation widget — type the run ID and click **Delete** to confirm. This operation cannot be undone (see §43.5 of the technical reference for cleanup rules).
+The run list header contains two action buttons: **+ New** (create a new ingrowth run) and **🗑** (delete the currently open run). The delete button is enabled only when a run is open in the detail view. Clicking it reveals an inline confirmation widget — type the run ID and click **Delete** to confirm. This operation cannot be undone (see §103.5 of the technical reference for cleanup rules).
 
 #### Creating an Ingrowth Run
 
@@ -1132,7 +1446,7 @@ The table uses a **two-row column header** with colour-coded group labels spanni
 
 ---
 
-### 7.2 3He Extraction Runs
+### 8.2 3He Extraction Runs
 
 **Sub-module:** 3He Extraction Runs
 
@@ -1205,7 +1519,7 @@ The data table in an extraction run window contains one column per recorded quan
 
 ---
 
-### 7.3 3He Measurement Runs (Helix SFT)
+### 8.3 3He Measurement Runs (Helix SFT)
 
 **Sub-module:** 3He Measurement Runs
 
@@ -1393,7 +1707,7 @@ Use **◄ Prev / Next ►** to step through positions, or click any row in the d
 
 ---
 
-### 7.4 NG MS Sequence Runs (NobleControl / Qtegra)
+### 8.4 NG MS Sequence Runs (NobleControl / Qtegra)
 
 **Sub-module:** NG MS Sequence Runs
 
@@ -1406,7 +1720,7 @@ Full noble gas analysis (⁴He, Ne, Ar, Kr, Xe, ³He/⁴He ratio) from dissolved
 
 #### Run List
 
-The run list header contains **+ New** (create a new NG sequence run) and **🗑** (delete the currently open run, requires `ngamadmin`). Clicking **🗑** reveals an inline confirmation widget — type the run ID and click **Delete** to confirm. See §43.5 of the technical reference for the three-way cleanup that executes on deletion.
+The run list header contains **+ New** (create a new NG sequence run) and **🗑** (delete the currently open run, requires `ngamadmin`). Clicking **🗑** reveals an inline confirmation widget — type the run ID and click **Delete** to confirm. See §103.5 of the technical reference for the three-way cleanup that executes on deletion.
 
 #### Creating an NG Sequence Run
 
@@ -1489,7 +1803,7 @@ For short sequences where blank or standard coverage is sparse, additional `.pro
 
 **Step 4 — Results and Charts**
 
-After **Process** completes, the window switches to the split results view (see [§7.4.1 NG Results View Layout](#741-ng-results-view-layout) below).
+After **Process** completes, the window switches to the split results view (see [§10.4.1 NG Results View Layout](#841-ng-results-view-layout) below).
 
 **Step 5 — Import Results**
 
@@ -1497,7 +1811,7 @@ Review the results tables. Click **Import Results** to save all accepted values 
 
 ---
 
-#### 7.4.1 NG Results View Layout
+#### 8.4.1 NG Results View Layout
 
 The results view is a **vertically split** interface:
 
@@ -1523,7 +1837,7 @@ The vertical split is resizable. The isotope combo is only shown when the active
 | Tab | Content |
 |-----|---------|
 | **Inlet Signals** | Bar chart: ⁴He signal by inlet. The currently selected inlet is highlighted with a black border and dashed vertical line. Title shows the selected inlet name. Use Prev / Next or click a data-table row to navigate. |
-| **Ratio Signals** | Per-cycle ratio time-series for the selected inlet: raw $I_{num}/I_{den}$ scatter at each measurement cycle, fitted to $t_0$ using the same models as the individual signal fitter. The sidebar shows the ratio selector, fit model selector, chosen model, $R(t_0)$, ± uncertainty, and $R^2$. See [§7.4.8 Ratio Signals tab](#748-ratio-signals-tab). |
+| **Ratio Signals** | Per-cycle ratio time-series for the selected inlet: raw $I_{num}/I_{den}$ scatter at each measurement cycle, fitted to $t_0$ using the same models as the individual signal fitter. The sidebar shows the ratio selector, fit model selector, chosen model, $R(t_0)$, ± uncertainty, and $R^2$. See [§10.4.8 Ratio Signals tab](#848-ratio-signals-tab). |
 | **Blank Fit** | Time-series: blank signal per inlet with the fitted blank interpolation curve and 95% CI band for the selected isotope and device. |
 | **Drift Corr.** | Two-panel chart: upper — measured sensitivity of standards (scatter) with drift fit and CI; lower — drift-corrected sensitivity residuals. Useful for assessing the quality of drift correction. |
 | **Linearity** | Two-panel chart: upper — sensitivity vs. blank-corrected signal amplitude with linearity fit; lower — residuals after correction. |
@@ -1538,7 +1852,7 @@ The vertical split is resizable. The isotope combo is only shown when the active
 | **Results** | Blank-corrected mean signals and uncertainties per inlet; correction stage selector. Displays the specific background used in the **Background Used** column. |
 | **Final Results** | Sensitivity-calibrated concentrations (ccSTP/g) per sample inlet. |
 | **Summary** | One row per unique sample with final dissolved gas concentrations and associated uncertainties, ready for reporting. |
-| **Gauge** | Per-inlet SRG pressure readings (mbar) plus gauge-derived He, Ne, Ar concentrations (ccSTP) — see [§7.4.7 Gauge tab](#747-gauge-tab-and-gauge-signal-trace-isolation). |
+| **Gauge** | Per-inlet SRG pressure readings (mbar) plus gauge-derived He, Ne, Ar concentrations (ccSTP) — see [§10.4.7 Gauge tab](#847-gauge-tab-and-gauge-signal-trace-isolation). |
 | **Sample Results** | Flat per-sample table with ccSTP, ± ccSTP, ccSTP/g, ± ccSTP/g, η, C_eq, and R/R_eq — available when the run is linked to an extraction record. Includes an **Export CSV** button. |
 
 **Navigation**
@@ -1547,7 +1861,7 @@ Use **◄ Prev / Next ►** (shown above the charts) to step through each inlet.
 
 ---
 
-### 7.4.2 Data Reduction Pipeline
+### 8.4.2 Data Reduction Pipeline
 
 When **Process Data** is clicked, the API executes a five-stage orchestration. Stages 1–3 parse the raw files and prime the calibration cache; Stage 4 runs the full signal-level pipeline; Stage 5 writes results back to the database. The diagrams below trace the complete call chain from raw file ingestion to database-ready results.
 
@@ -1769,7 +2083,7 @@ Steps 1–3 operate on raw cycle data inside each inlet; Steps 4–11 operate ac
 
 ---
 
-### 7.4.4 BG Proxy Mode — ⁴He Background Replacement
+### 8.4.4 BG Proxy Mode — ⁴He Background Replacement
 
 #### Why the ⁴He Faraday baseline can fail
 
@@ -1861,7 +2175,7 @@ the proxy.  This value is also stored in `ngam.ngblock.nvcbackgroundtobeused`.
 
 ---
 
-### 7.4.5 Inlet Role Classification (B / L / R)
+### 8.4.5 Inlet Role Classification (B / L / R)
 
 #### The three non-sample roles
 
@@ -1913,7 +2227,7 @@ Role column immediately after **#** for every non-sample inlet:
 
 ---
 
-### 7.4.6 Reprocess Analysis Plot Viewer
+### 8.4.6 Reprocess Analysis Plot Viewer
 
 **Open:** click the **↗ Reprocess** button in the top-right toolbar of the MS Data Reduction view (available after Process Data has been run).
 
@@ -1947,7 +2261,7 @@ In runs with very low ³He (SEM) signal, many cycles may return near-zero readin
 
 ---
 
-### 7.4.7 Gauge tab and Gauge Signal trace isolation
+### 8.4.7 Gauge tab and Gauge Signal trace isolation
 
 The Noble Gas MS instrument logs continuous pressure readings to a companion
 `.InletState` file throughout every sequence.  IsoWorks processes these readings
@@ -2100,7 +2414,7 @@ plateau selection includes a visually rising portion.
 
 ---
 
-### 7.4.8 Per-Isotope Fit Controls and Outlier Management
+### 8.4.8 Per-Isotope Fit Controls and Outlier Management
 
 #### Fit-type overrides
 
@@ -2177,7 +2491,7 @@ Certified ratio values (e.g. the true ³He/⁴He of the Spike gas) are stored in
 
 ---
 
-### 7.4.8 Ratio Signals tab
+### 8.4.8 Ratio Signals tab
 
 The **Ratio Signals** chart tab shows the per-cycle isotope ratio for the currently selected inlet, fit to $t_0$ — the same treatment applied to individual isotope signals in the **Inlet Signals** tab, but operating on $R(t) = I_{num}(t) / I_{den}(t)$ instead of a single species.
 
@@ -2233,12 +2547,12 @@ details, see:
 
 ---
 
-### 7.5 EQW Correction Factors
+### 8.5 EQW Correction Factors
 
 **Sub-module:** EQW Correction Factors  
 **Path:** Noble Gas (NGAM) → EQW Correction Factors
 
-#### 7.5.1 Overview
+#### 8.5.1 Overview
 
 **Equilibrium Water (EQW)** is a laboratory calibration standard — water that has been equilibrated with the atmosphere at a known temperature, pressure, and salinity. Because the dissolved noble-gas concentrations in such water are calculable from first principles (the Weiss solubility equations), running EQW samples through the full extraction and MS pipeline lets the lab quantify any systematic offset between *measured* and *expected* concentrations.
 
@@ -2250,14 +2564,14 @@ accounts for incomplete extraction, instrument-specific sensitivity differences,
 
 **When a CF = 1.0**, the pipeline is reproducing the theoretical value exactly. CF > 1 indicates under-recovery; CF < 1 indicates over-recovery.
 
-#### 7.5.2 Step 1 — Register and Extract EQW Samples
+#### 8.5.2 Step 1 — Register and Extract EQW Samples
 
 1. Register EQW water samples with **Sample Type = 50 (NGEQW)** in the submission form. Use prefix `E`.
 2. Assign the appropriate **container type** on each sample record (Water-Bulb, Cu-Tube, or Diffusion Sampler). The container type drives the water-mass calculation during extraction and is used as the CF filter key.
 3. Create a **NG Extraction Run** and add the EQW samples alongside field samples as normal. There is no special run type — EQW samples are processed on the same extraction line.
 4. Record extraction weights in the run detail window exactly as for field samples.
 
-#### 7.5.3 Step 2 — Enter Extraction Conditions
+#### 8.5.3 Step 2 — Enter Extraction Conditions
 
 In the extraction run detail window, fill in the following columns for **each EQW inlet**:
 
@@ -2272,16 +2586,16 @@ Leave **Altitude (m)** blank for EQW samples — if `Lab P. (torr)` is filled th
 > **Why Lab P. (torr) and not Altitude?**  
 > Field sample altitudes are estimated from GPS or a map. For EQW the equilibration is done in the lab at a known barometric pressure — enter the gauge reading directly for the most accurate equilibrium calculation.
 
-#### 7.5.4 Step 3 — Run the MS Sequence and Import
+#### 8.5.4 Step 3 — Run the MS Sequence and Import
 
-Process the NG MS sequence exactly as you would for field samples (see [§7.4 NG MS Sequence Runs](#74-ng-ms-sequence-runs-noblecontrol-qtegra)). When the analyst clicks **Import to DB** in the import dialog, IsoWorks **automatically** identifies EQW inlets (SampleType = 50), computes the per-gas CFs, and saves them to the database. No extra steps are required.
+Process the NG MS sequence exactly as you would for field samples (see [§10.4 NG MS Sequence Runs](#84-ng-ms-sequence-runs-noblecontrol-qtegra)). When the analyst clicks **Import to DB** in the import dialog, IsoWorks **automatically** identifies EQW inlets (SampleType = 50), computes the per-gas CFs, and saves them to the database. No extra steps are required.
 
 The auto-save runs **after** the main import commit, so any failure to save an EQW run does not affect the measurement results for field samples.
 
 > **What the pipeline does internally:**  
 > For each EQW inlet, it reads (T, P, S) from the extraction data, computes the Weiss equilibrium concentration per isotope, divides it by the measured dissolved concentration (ccSTP/g), and saves one row to `ngam.ng_eqw_run`.
 
-#### 7.5.5 Step 4 — Review CFs and Lock Outliers
+#### 8.5.5 Step 4 — Review CFs and Lock Outliers
 
 **Path:** NGAM → EQW Correction Factors
 
@@ -2309,9 +2623,9 @@ The auto-save runs **after** the main import commit, so any failure to save an E
 **Locking a run or gas:**  
 Tick the checkbox for any gas in any run to exclude it from the aggregate CF calculation.  Use this to remove outlier runs caused by equipment problems, unusual water chemistry, or data-entry errors. The lock state is saved to the database immediately — no separate save step.
 
-The **Summary strip** at the top of the widget updates live whenever a lock is toggled (§7.5.8).
+The **Summary strip** at the top of the widget updates live whenever a lock is toggled (§10.5.8).
 
-#### 7.5.6 Step 5 — Create a CF Template (Admin)
+#### 8.5.6 Step 5 — Create a CF Template (Admin)
 
 > **Requires:** `IsAdmin` privilege
 
@@ -2328,7 +2642,7 @@ The new template appears in the **Template History** table (highlighted green if
 > **How many runs are enough?**  
 > A minimum of 3–5 EQW runs per (container type, instrument) combination is recommended before creating a template. The 1σ% in the summary strip is the key indicator of stability.
 
-#### 7.5.7 Step 6 — Promote to Applied (Admin)
+#### 8.5.7 Step 6 — Promote to Applied (Admin)
 
 > **Requires:** `IsAdmin` privilege
 
@@ -2352,7 +2666,7 @@ Future data reduction queries for this (container type, instrument) will use the
 > *Applied* CFs are the values promoted by an admin analyst and used for actual sample correction.  
 > The two can differ temporarily if new EQW runs have been added since the last promotion.
 
-#### 7.5.8 CF Summary Strip
+#### 8.5.8 CF Summary Strip
 
 The dark-blue horizontal strip at the top of the widget shows two sets of values side-by-side:
 
@@ -2371,7 +2685,65 @@ Values shown as `—` mean no data is available for that gas (either no unlocked
 
 ---
 
-## 8. QA/QC Module
+
+
+
+## 9. AMS ¹⁴C Module
+
+**Path:** AMS ¹⁴C icon → flyout → **Graphitisation** or **AMS Runs**
+
+The AMS ¹⁴C module manages the two-stage preparation and measurement workflow for radiocarbon (¹⁴C) analysis by Accelerator Mass Spectrometry.
+
+```
+Graphitisation (sample prep)  ──►  AMS Runs (measurement)
+```
+
+Both sub-modules open as standalone workspace tabs. The flyout exposes a **+ New Graphitisation Batch** and **+ New AMS Run** sub-item for each, which open the respective tab directly in create mode.
+
+**Required privilege:** Standard analyst access for creating and editing; elevated privileges for deleting batches/runs.
+
+---
+
+### 9.1 Graphitisation
+
+**Sub-module:** Graphitisation
+
+Manages the preparation of graphite targets from CO₂ samples for AMS measurement.
+
+#### Batch List
+
+The list shows all graphitisation batches in a table view. Single-click a row to **select** it (highlights the row); double-click to **open** the batch detail. A **New Batch** button creates a new batch; a **🗑** button in the toolbar is enabled when a batch is selected and deletes it after confirmation. Status indicators and last-modified timestamps are shown per row.
+
+#### Deleting a Graphitisation Batch
+
+1. Single-click the target row in the batch list to select it.
+2. Click the **🗑** button in the toolbar.
+3. An inline confirmation widget appears — type the batch ID and click **Delete** to confirm. This is permanent and cannot be undone.
+
+---
+
+### 9.2 AMS Runs
+
+**Sub-module:** AMS Runs
+
+Manages AMS measurement runs — each run groups a set of graphite targets measured on the AMS instrument in a single measurement session.
+
+#### Run List
+
+The list shows all AMS runs. Filter by status (Open / Reduced / Approved / Locked) and search by run code using the controls in the toolbar. Single-click a row to **select** it; double-click to **open** the run detail.
+
+#### Deleting an AMS Run
+
+1. Single-click the target row in the run list to select it.
+2. Click the **🗑** button in the toolbar.
+3. An inline confirmation widget appears — type the run ID and click **Delete** to confirm.
+
+---
+
+
+
+
+## 10. QA/QC Module
 
 **Path:** QA/QC icon
 
@@ -2379,7 +2751,7 @@ The QA/QC module provides cross-run control charts for monitoring long-term stab
 
 ---
 
-### 8.1 Overview & Navigation
+### 10.1 Overview & Navigation
 
 **Window layout**
 
@@ -2420,7 +2792,7 @@ The QA/QC module provides cross-run control charts for monitoring long-term stab
 
 ---
 
-### 8.2 Spiked Cells — 3H Enrichment Parameter
+### 10.2 Spiked Cells — 3H Enrichment Parameter
 
 **Parameter:** Spiked Cells
 
@@ -2454,7 +2826,7 @@ Plots the **Enrichment Parameter (EP)** of the 3H spike standard cells over time
 
 ---
 
-### 8.3 Deuterium Recovery — 2H Enrichment
+### 10.3 Deuterium Recovery — 2H Enrichment
 
 **Parameter:** Deuterium Recovery
 
@@ -2487,7 +2859,7 @@ Plots **²H Recovery** and **Enrichment Factor (EF)** derived from the deuterium
 
 ---
 
-### 8.4 LS Counter — Reference Standard CPM
+### 10.4 LS Counter — Reference Standard CPM
 
 **Parameter:** LS Counter
 
@@ -2531,7 +2903,7 @@ Plots the **net CPM** of a selected reference standard measured on a specific LS
 
 ---
 
-### 8.5 Lab Air Moisture & Control Sample
+### 10.5 Lab Air Moisture & Control Sample
 
 **Parameters:** Lab Air Moisture / Control Sample
 
@@ -2546,7 +2918,7 @@ No additional configuration is required — the standard selector is set automat
 
 ---
 
-### 8.6 Reading the Control Chart
+### 10.6 Reading the Control Chart
 
 All five QA/QC views display the same chart format:
 
@@ -2580,7 +2952,7 @@ The mean and σ are recalculated each time filters are applied and reflect only 
 
 ---
 
-### 8.7 Exporting QA/QC Data
+### 10.7 Exporting QA/QC Data
 
 Click **Export** (top-right of the header bar) to save the currently displayed dataset as a comma-separated values (CSV) file.
 
@@ -2592,345 +2964,8 @@ Click **Export** (top-right of the header bar) to save the currently displayed d
 
 ---
 
-## 9. Settings & Administration
 
-**Path:** Settings icon (⚙, bottom of icon bar) → sub-module panel
 
-Administrative functions typically used by the laboratory manager or IT administrator. Most sub-modules require elevated privileges. The sub-module panel stays open for quick switching between settings pages.
-
----
-
-### 9.1 Database Connection
-
-This module establishes the core connection between the IsoWorks PyQt frontend and the SQL database backend (`db_core.py`).
-
-**Available Dialects:**
-
-| Dialect | Connection details required |
-|---------|---------------------------|
-| **PostgreSQL** | Host (e.g., `localhost`), Port (`5432`), Database (`isoworks`), Username, Password |
-| **SQL Server** | File DSN path (`.dsn`) |
-| **MS Access** | File path to an `.accdb` or `.mdb` database file |
-
-#### Operation
-1. Select your database dialect.
-2. Provide the necessary connection strings or credentials. 
-3. Click **Test & Save Connection**. IsoWorks will attempt a test query (`SELECT 1`). 
-4. If successful, the dialect and encrypted credentials are automatically persisted to local OS `QSettings` (`db/dialect`, `db/pg_host`, etc.). 
-
-> **Note:** For PostgreSQL, the application utilizes SQLAlchemy connection pooling. A restart is recommended after changing the active database connection to clear cached queries and ensure all modules sync correctly.
-
----
-
-### 9.2 Employee Management
-
-Manages laboratory personnel accounts, historical records, and granular access privileges. IsoWorks utilizes a single sign-on (SSO) approach by matching the application user to the active Operating System account.
-
-> **First-user rule:** If no employee record exists in the database when IsoWorks first connects, the application creates an initial administrator account automatically using the current OS login name with full `superadmin` and `IsAdmin` privileges. This bootstrap mechanism ensures you are never locked out of the Settings module on a fresh installation. Add all subsequent users manually through this module.
-
-#### Adding an Employee
-
-1. Click **New Employee**.
-2. **Identity Details:** Fill in Last Name, First (Middle) Name, and Email.
-3. **System Login Name:** *Crucial step.* This must exactly match the OS account name (e.g., the Windows profile name without the domain prefix, or the macOS short username). This is case-insensitive.
-4. **Assign Privileges:** Check the appropriate privilege boxes to grant access to specific analytical pipelines (see Appendix A).
-   - `accesssiam`, `ngamaccess`: Allows creating and processing runs in those modules.
-   - `siamadmin`, `ngamadmin`: Grants destructive permissions (e.g., deleting runs).
-   - `IsAdmin`: Required to create CF templates and promote EQW correction factors.
-   - `superadmin`: Grants global destructive permissions and access to all advanced settings.
-4. Click **Stop Edit → Save**.
-
-> **Tip:** Double-click any existing row in the grid to enter Edit Mode. Once finished, click **Stop Edit** followed by **Save** to commit the changes to the database.
-
-#### Deactivating
-
-If an employee leaves the laboratory, uncheck their **Active** flag. *Do not delete their record.* IsoWorks relies on historical Employee IDs to maintain the audit trail of who created, processed, or evaluated past runs.
-
----
-
-### 9.3 Customer Management
-
-Manages the list of external clients, internal departments, or collaborating researchers who submit samples.
-
-#### Required Fields
-- **Customer Name:** Full organizational or departmental name.
-- **Short Code:** An abbreviation used for internal reporting or sample prefixes.
-- **Contact Info:** Name, Email, and Phone for the primary liaison. 
-
-Customers populate the dynamic "Submitter" dropdowns inside the **Sample Management → Import New Submission** module. Setting a customer to inactive removes them from the active dropdown lists while preserving historical submissions.
-
----
-
-### 9.4 Equipment Management
-
-Manages the physical analytical instruments, enrichment lines, and liquid scintillation counters used to process runs. 
-
-| Equipment Type | Examples |
-|---------------|---------|
-| IRMS | Delta V Plus, MAT 253, Picarro L2130-i |
-| Tritium enrichment system | 100-cell electrolysis unit |
-| LSC counter | Hidex 300 SL, Quantulus 1220 |
-| Noble gas MS | MAP 215-50, Helix SFT |
-
-#### Linking to File Formats
-Equipment records are linked to a specific `AnalysisImportFormat` (e.g., "Hidex List", "Isodat Dual Inlet"). This linkage tells IsoWorks which parser algorithm to use when an analyst clicks "Import Data" for a specific machine.
-
-#### Equipment Maintenance Log
-
-Record historical maintenance events (e.g., re-plating cells, source cleaning, detector replacement):
-- Select the equipment → **Maintenance → Add**.
-- Choose the maintenance type and enter date, description, and technician.
-
-IsoWorks supports the following maintenance types in accordance with ISO 17025 equipment management requirements:
-
-| Maintenance Type | Description |
-|-----------------|-------------|
-| **Reactive** | Unplanned maintenance performed in response to an unexpected failure |
-| **Run to Fail** | Equipment intentionally operated until failure before maintenance is performed |
-| **Routine** | Scheduled periodic maintenance (e.g., daily checks, weekly cleaning) |
-| **Corrective** | Corrective action following a documented non-conformance |
-| **Preventive** | Proactive maintenance to prevent foreseeable failures (e.g., annual servicing) |
-| **Condition-based** | Triggered by a measured parameter crossing a defined threshold (e.g., EC, counting efficiency) |
-| **Calibration** | Instrument calibration against a traceable reference standard; requires certificate reference |
-
-The maintenance log is searchable by date range and type, and is included in equipment history reports for audit purposes.
-
-#### TRIMS Electrolysis Cells
-For Tritium electrolysis systems, select the system and navigate to the **Cells** sub-form. Here you can record individual Cell IDs and enter their historical or currently active **Cell Constant (β)** used in enrichment factor calculations.
-
----
-
-### 9.5 Procedure Management
-
-Procedures (and their underlying Protocols) define the rules, mathematical settings, and column mappings used when parsing and correcting analytical data. They form the bridge between raw instrument output and final LIMS calculations.
-
-#### The Protocol Architecture
-Behind the scenes, Procedures are managed by the `ProtocolManager`. A Protocol consists of two main components:
-1. **Settings (JSON):** The mathematical configuration for the pipeline.
-   - *SIAM:* Linearity models, Memory carryover method (e.g., Fast/Slow Pool), Drift correction axis, and Outlier detection methods (SD, MAD, Huber).
-   - *LSC:* Signal Metric (CPM/DPM), Efficiency Source, Background Mode, Activity Unit (TU vs Bq/L).
-2. **Column Mappings:** Maps raw file headers to expected IsoWorks database fields. 
-   - e.g., Mapping the file header `"CPMroi1"` to the target field `"CPM"`.
-   - Includes flags for whether the mapped column is already *Net* (background-subtracted).
-
-#### Creating/Editing a Protocol
-- Navigate to **Procedure Management** or click **Load Protocol... / Manage Protocols** inside any Run Processor.
-- Select a base **File Format** (e.g., "LGR DT-100").
-- Adjust the analytical logic toggles.
-- Under **Mappings**, define which file columns correspond to the required calculation inputs.
-- Click **Save Protocol**. Marking a protocol as *Default* auto-loads it whenever that specific File Format is selected by an analyst.
-
-> **Audit Trail:** Whenever an analyst processes a run, the system takes an immutable JSON snapshot of the Protocol at that exact moment. This guarantees the mathematical history of a run is preserved even if the central Protocol is later edited.
-
-#### TRIMS-LSC Protocol Configuration Parameters
-
-When configuring an LSC procedure, the following parameters must be set:
-
-| Parameter | Description | Typical Value |
-|-----------|-------------|--------------|
-| **Cocktail size (mL)** | Volume of scintillation cocktail added to each vial | 10–15 mL |
-| **Cocktail type** | Scintillation cocktail product (e.g., Ultima Gold LLT, Insta-Gel Plus) | Lab-specific |
-| **Number of cycles** | How many counting cycles per sample | 2–6 |
-| **Number of cycle repeats** | Repeats of the full cycle set before flagging outliers | 1–3 |
-| **Cycle length (min)** | Duration of each counting cycle | 60–120 min |
-| **Maximum counts per cycle** | Count upper limit; vials that exceed this are flagged as oversaturated | e.g. 999,999 |
-| **Quench indicator** | Method used to track quench: tSIE, SQP(E), or SIS | tSIE (recommended) |
-| **Counting window** | Energy window (keV) for tritium peak — see FOM guidance in [§6.3 LSC Runs](#63-lsc-runs) | Counter-specific |
-| **Background vials** | Number of dedicated background vials per run | 2–4 |
-| **Efficiency standard ID** | Sample ID of the certified counting efficiency standard | Lab-specific |
-
-#### SIAM Procedure Configuration
-
-SIAM procedures define the measurables (isotopes) analysed in each run, together with quality acceptance limits:
-
-| Configuration item | Description |
-|-------------------|-------------|
-| **Measurables** | List of isotopes to report (e.g. δ¹⁸O, δ²H, δ¹³C, δ¹⁵N). Each measurable carries a required repeat count and an acceptance window (e.g. ≤ 0.3 ‰ standard deviation between replicates) |
-| **Number of floating references** | How many standard positions are pre-filled from the reference pool rather than from the TBA queue |
-| **Memory correction** | Enable/disable and choose model (1-reservoir, fast/slow pool, asymptotic) |
-| **Linear drift correction** | Enable/disable and choose axis (run time or injection order) |
-| **Weighted linear normalization** | Two-point normalization using VSMOW + SLAP anchors; applies weighting by certified uncertainty |
-| **Zeta test** | Post-calibration outlier test: rejects measurements where \|z-score\| > 3.0 relative to the certified control values |
-
-Post-corrections are applied in the order listed above (memory → drift → linearity → calibration → zeta). Each step is optional and can be toggled individually per procedure.
-
-#### Load List Templates (SIAM / NGAM)
-Procedures are also used to generate the empty vial grid when creating a new run.
-- **SIAM:** Right-click positions in the tray visually to assign Standards, Unknown Sample Blocks, or specify the number of injections per vial.
-- **NGAM:** The NG Sequence Template Editor maps mass spectrometer **Inlet Ports** to fixed Reference Gases or Sample Slots, dictating exactly how physical plumbing connects to the parsed Qtegra XLSM data.
-
----
-
-### 9.6 Workflow Management
-
-Workflows define the exact sequence of analytical stages a sample must undergo. They ensure samples route to the correct To Be Analysed (TBA) queue.
-
-#### Creating a Workflow
-
-1. Click **New Workflow**.
-2. Define a name and an abbreviation (e.g., "TRIMS Enrichment", "Dissolved Noble Gases").
-3. Select the target **Media Code** (e.g., Water, Gas).
-4. **Add Workflow Jobs:** These are the sequential steps.
-   - *Example TRIMS sequence:* Job 1 = Primary Distillation; Job 2 = Electrolytic Enrichment; Job 3 = LSC Counting.
-5. Save the workflow. 
-
-Once active, users can assign this workflow to newly imported samples in the **Sample Management** module, staging them to the appropriate analytical queue.
-
-#### Workflow Job Properties
-
-Each job within a workflow has the following configurable properties:
-
-| Property | Description |
-|----------|-------------|
-| **Job Name** | Label shown in the TBA queue and run creation dialogs (e.g. "Primary Distillation") |
-| **Job Order** | Sequential position in the workflow (1, 2, 3, …). Samples advance to Job *n+1* only after Job *n* is complete |
-| **Is Pre-Requisite** | When enabled, samples cannot be assigned to the *next* job until the current job is marked as successfully completed. Prevents premature staging (e.g., enrichment cannot start until distillation passes the EC threshold) |
-| **Module** | Which analytical module handles this job (SIAM, TRIMS, NGAM) |
-| **Target Volume (mL)** | Expected sample volume consumed by this job; used to verify sufficient sample remains |
-
-The **Is Pre-Requisite** flag is particularly important for the TRIMS pipeline, where the distillation quality (EC) must be confirmed before a sample proceeds to electrolytic enrichment.
-
----
-
-### 9.7 References & Controls
-
-Manages the library of known reference materials (e.g., VSMOW, SLAP2, USGS40) and internal laboratory quality control standards.
-
-#### Configuring a Reference Standard
-- **Identity:** Lab ID (e.g., "W-3"), Long Name, Sample Type, and Matrix.
-- **Certified Values:** Click into the **Reference Data Subform** to add the known isotopic values. You must specify the Isotope (e.g., `d18O`), the True Value, the Uncertainty, and the Scale (e.g., VSMOW, VPDB).
-   - *Note:* The system automatically pivots these into working variables like `d18O_true` and `d18O_uncertainty` during data processing.
-- **Primary Roles:** Designate what this standard is typically used for (Calibration, Drift tracking, Memory modeling, Linearity fitting, or independent Validation/Control).
-
-When a run is processed, IsoWorks automatically queries the database to pull the certified values for any sample ID in the run that matches a registered Reference Material.
-
----
-
-### 9.8 Global Parameters
-
-A `GlobalValue` key-value table used to store overarching constants, math defaults, and legacy file paths for various modules.
-
-| Key | Example Value | Purpose |
-|-----|--------------|---------|
-| `default_enrichment_factor` | `0.0837` | Default β for new electrolysis cells |
-| `tritium_decay_constant` | `1.782e-9` | λ for ³H (s⁻¹) |
-| `3He_STP_volume` | `22414.0` | STP molar volume (cm³/mol) |
-| `NG_sensitivity_He` | `3.5e-3` | Default He sensitivity (A/ccSTP) |
-| `lsc_tSIE_default` | `750` | Default tSIE window for LSC import |
-| `VOLUME_UNCERTAINTY_COCKTAIL` | `0.02` | Default uncertainty for pipetting LSC cocktails |
-| `TRIMSDBPath` | `C:/TRIMS/Database.accdb` | File path for cross-database TRIMS legacy imports |
-
-To edit: Double-click any row, change the `TokenValue`, click **Stop Edit**, and click **Save**. 
-
----
-
-### 9.9 Reporting Templates
-
-**Path:** Settings → Reporting Templates
-
-IsoWorks generates ISO 17025–compliant analytical reports for clients. Reporting templates define the layout, laboratory branding, and content rules applied when a report is generated from finalized run data.
-
-#### Report Structure
-
-Each report is composed of six standardised sections:
-
-| Section | Content |
-|---------|---------|
-| **1. Laboratory Header** | Laboratory name, logo, address, accreditation number, and contact details |
-| **2. Report Identification** | Report number, issue date, revision status, and analyst/authoriser names |
-| **3. Sampling Information** | Client name, project name, sample collection site, sampling dates, field parameters (if available: EC, pH, temperature, alkalinity) |
-| **4. Analytical Methods** | Reference to the standard method(s) applied (e.g., ISO 11929, ASTM D5129), instruments used, and procedure revision |
-| **5. Measurement Results** | Table of results with: Sample ID, Sample Name, Result value, Unit, Coverage factor (*k*), Expanded uncertainty, and detection limit logic |
-| **6. Remarks & Signature** | Free-text remarks (e.g., outlier exclusions, re-analysis notes), analyst signature, and authorising officer sign-off |
-
-#### Detection Limit Reporting Logic (Section 5)
-
-IsoWorks automatically applies the following rule for result values near or below the detection limit:
-
-| Condition | Reported value |
-|-----------|---------------|
-| Result > Detection Limit | Numeric value ± expanded uncertainty (k = 2) |
-| Result ≤ Detection Limit | Reported as `< DL` where DL is the method detection limit |
-| Result is negative (within uncertainty) | Reported as `< DL`; flagged in the remarks column |
-
-The detection limit and coverage factor are configurable per procedure and per measurement type.
-
-#### Configuring a Template
-
-1. Navigate to **Settings → Reporting Templates**.
-2. Click **New Template** or select an existing one to edit.
-3. Fill in the **Laboratory Details** panel: name, address, accreditation body, certificate number, logo (PNG/SVG upload).
-4. In the **Result Format** panel:
-   - Select the **Unit** for each measurement type (TU, Bq/L, ‰ VSMOW, etc.).
-   - Set the **Coverage factor** (typically *k* = 2 for 95% confidence).
-   - Enter the **Detection Limit** value per method.
-5. Under **Footer / Remarks**, add any standard disclaimer text that should appear on all reports (e.g., laboratory accreditation statement).
-6. Click **Save Template**. Mark one template as **Default** to pre-select it during report generation.
-
-#### Generating a Report
-
-Reports are generated from the **Finalize Tab** of an LSC run (TRIMS) or from the **Submission Management** screen (all modules):
-
-1. Select the submission or finalized run.
-2. Click **Generate Report**.
-3. Select the reporting template and verify the cover-page information.
-4. Click **Export PDF** to save, or **Print** to send directly to the printer.
-
-Reports are stored in the database with a sequential report number and linked to the relevant run and submission records for full audit traceability.
-
----
-
-## 10. AMS ¹⁴C Module
-
-**Path:** AMS ¹⁴C icon → flyout → **Graphitisation** or **AMS Runs**
-
-The AMS ¹⁴C module manages the two-stage preparation and measurement workflow for radiocarbon (¹⁴C) analysis by Accelerator Mass Spectrometry.
-
-```
-Graphitisation (sample prep)  ──►  AMS Runs (measurement)
-```
-
-Both sub-modules open as standalone workspace tabs. The flyout exposes a **+ New Graphitisation Batch** and **+ New AMS Run** sub-item for each, which open the respective tab directly in create mode.
-
-**Required privilege:** Standard analyst access for creating and editing; elevated privileges for deleting batches/runs.
-
----
-
-### 10.1 Graphitisation
-
-**Sub-module:** Graphitisation
-
-Manages the preparation of graphite targets from CO₂ samples for AMS measurement.
-
-#### Batch List
-
-The list shows all graphitisation batches in a table view. Single-click a row to **select** it (highlights the row); double-click to **open** the batch detail. A **New Batch** button creates a new batch; a **🗑** button in the toolbar is enabled when a batch is selected and deletes it after confirmation. Status indicators and last-modified timestamps are shown per row.
-
-#### Deleting a Graphitisation Batch
-
-1. Single-click the target row in the batch list to select it.
-2. Click the **🗑** button in the toolbar.
-3. An inline confirmation widget appears — type the batch ID and click **Delete** to confirm. This is permanent and cannot be undone.
-
----
-
-### 10.2 AMS Runs
-
-**Sub-module:** AMS Runs
-
-Manages AMS measurement runs — each run groups a set of graphite targets measured on the AMS instrument in a single measurement session.
-
-#### Run List
-
-The list shows all AMS runs. Filter by status (Open / Reduced / Approved / Locked) and search by run code using the controls in the toolbar. Single-click a row to **select** it; double-click to **open** the run detail.
-
-#### Deleting an AMS Run
-
-1. Single-click the target row in the run list to select it.
-2. Click the **🗑** button in the toolbar.
-3. An inline confirmation widget appears — type the run ID and click **Delete** to confirm.
-
----
 
 ## Appendix A — Privilege Roles
 
@@ -2951,6 +2986,9 @@ Privilege checking uses the current OS login name (normalised to lowercase, doma
 > **EQW CF admin actions:** The "Create Template" and "Promote to Applied" buttons in the EQW Correction Factors module require `IsAdmin`. Standard `ngamaccess` is sufficient to view the EQW runs table and toggle lock flags.
 
 ---
+
+
+
 
 ## Appendix B — Glossary
 
@@ -3021,6 +3059,9 @@ Privilege checking uses the current OS login name (normalised to lowercase, doma
 
 ---
 
+
+
+
 ## Appendix C — Status Indicators
 
 | Dot Colour | Status | Context |
@@ -3032,6 +3073,9 @@ Privilege checking uses the current OS login name (normalised to lowercase, doma
 | ⚪ Grey | Unknown | Status could not be determined |
 
 ---
+
+
+
 
 ## Appendix D — Supported File Formats
 
@@ -3064,6 +3108,9 @@ Privilege checking uses the current OS login name (normalised to lowercase, doma
 | Noble Gas MS | Qtegra | XLSM workbook in `SequenceFitResults/` sub-folder |
 
 ---
+
+
+
 
 ## Appendix E — LSC Counter Setup Guides
 
@@ -3141,6 +3188,9 @@ Select file format **Hidex 300 SL** in the Import tab. IsoWorks reads the matrix
 > **Recommendation:** The Hidex 300 SL with Digital Pb shield + Chemiluminescence-free ROI is the recommended setup for laboratories with highly variable sample matrices, as it has the lowest rate of cycle outliers and the most consistent background across sample types.
 
 ---
+
+
+
 
 ## Appendix F — NGAM Linearity & Gauge Calibration: Technical Notes
 
@@ -3281,3 +3331,5 @@ where primes denote N₂-equivalent readings and σ the species factor. No expli
 
 *Document updated: 2026-05-29*
 *IsoWorks pyLIMS — PyQt5 / PostgreSQL edition*
+
+

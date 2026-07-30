@@ -455,7 +455,7 @@ class TrayConfigSubformWidget(QWidget):
 
 # --- MAIN WIDGET: Equipment Management ---
 class EquipmentManagementWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, start_create_type_id=None):
         super().__init__(parent)
         self.current_equipment_id = None; self.is_new_record = False
         self.main_layout = QVBoxLayout(self)
@@ -463,9 +463,16 @@ class EquipmentManagementWidget(QWidget):
         self.main_layout.addWidget(self._create_filter_panel())
         self.main_layout.addSpacing(10); self.main_layout.addWidget(self._create_detail_panel(), 1)
         self._connect_signals()
-        try: db_manager.get_engine(); self.load_module_combo()
+        try:
+            db_manager.get_engine(); self.load_module_combo(); self.load_type_combo()
         except Exception as _e: logging.error(f"[{__class__.__name__ if hasattr(__class__, '__name__') else ''}] {_e}", exc_info=False)
         self._set_form_read_only(True); self.btnSave.setEnabled(False); self.btnCancel.setEnabled(False)
+        if start_create_type_id is not None:
+            # Deep-link entry point (e.g. "+ Add Balance" on a run screen's
+            # balance bar) -- open straight into +New with Type pre-set,
+            # instead of the bare browse view.
+            self.on_new()
+            self.cmbType.setCurrentIndex(self.cmbType.findData(start_create_type_id))
 
     def _sql_concat(self, *args): return _sql_concat_global(*args)
 
@@ -508,6 +515,7 @@ class EquipmentManagementWidget(QWidget):
         self.txtID         = QLineEdit(); self.txtID.setReadOnly(True)
         self.txtIdentifier = QLineEdit()
         self.txtName       = QLineEdit()
+        self.cmbType       = QComboBox()
         self.txtMan        = QLineEdit()
         self.txtMod        = QLineEdit()
         self.txtSer        = QLineEdit()
@@ -526,6 +534,7 @@ class EquipmentManagementWidget(QWidget):
         
         f_det.addRow("Identifier:",   self.txtIdentifier)
         f_det.addRow("Name:",         self.txtName)
+        f_det.addRow("Type:",         self.cmbType)
         f_det.addRow("Manufacturer:", self.txtMan)
         f_det.addRow("Model:",        self.txtMod)
         f_det.addRow("Serial #:",     self.txtSer)
@@ -638,6 +647,16 @@ class EquipmentManagementWidget(QWidget):
                 for r in res: self.cmbModule.addItem(r[1], r[0])
         except Exception as _e: logging.error(f"[{__class__.__name__ if hasattr(__class__, '__name__') else ''}] {_e}", exc_info=False)
 
+    def load_type_combo(self):
+        """public.equipment_type -- independent of Module/Category, same
+        source web's GET /equipment/types reads."""
+        try:
+            with db_manager.get_connection() as conn:
+                res = conn.execute(text("SELECT TypeID, TypeName FROM public.equipment_type ORDER BY SortOrder, TypeName"))
+                self.cmbType.clear(); self.cmbType.addItem("-", None)
+                for r in res: self.cmbType.addItem(r[1], r[0])
+        except Exception as _e: logging.error(f"[{__class__.__name__ if hasattr(__class__, '__name__') else ''}] {_e}", exc_info=False)
+
     def on_mod(self):
         mid = self.cmbModule.currentData()
         self.cmbCategory.clear(); self.cmbCategory.addItem("-", None)
@@ -684,6 +703,14 @@ class EquipmentManagementWidget(QWidget):
             self.subform_stack.setCurrentWidget(self.sub_empty)
 
     def on_sel(self):
+        if self.is_new_record:
+            # Module/Category are also the filter combos for cmbSelectionList,
+            # and picking a Category is required before a new record can be
+            # saved (CategoryID is NOT NULL) -- without this guard, doing so
+            # mid-New re-fires this handler and silently overwrites every
+            # field the user already filled in (including Type) with
+            # whatever equipment happens to be first in that category.
+            return
         eid = self.cmbSelectionList.currentData(); self.current_equipment_id = eid
         if not eid: self._clear_form_fields(); return
         try:
@@ -702,6 +729,7 @@ class EquipmentManagementWidget(QWidget):
                     self.txtContEnd.setText(str(row.ContractEndsOn.date()) if row.ContractEndsOn else "")
                     self.txtMaintInt.setText(str(row.MaintenanceIntervalMonths or "")); self.txtMaintAlert.setText(str(row.MaintenanceAlertDays or ""))
                     
+                    self.cmbType.setCurrentIndex(self.cmbType.findData(row.TypeID))
                     self.cmbProc.setCurrentIndex(self.cmbProc.findData(row.DefaultProcedureID))
                     self.cmbImp.setCurrentIndex(self.cmbImp.findData(row.AnalysisImportFormat))
                     self.cmbExp.setCurrentIndex(self.cmbExp.findData(row.SampleExportFormat))
@@ -719,13 +747,13 @@ class EquipmentManagementWidget(QWidget):
     def _clear_form_fields(self):
         for w in [self.txtID, self.txtIdentifier, self.txtName, self.txtMan, self.txtMod, self.txtSer, self.txtInv, self.txtLoc, self.txtStartOp, self.txtEndOp, self.txtPos, self.txtRem, self.txtWarrEnd, self.txtContEnd, self.txtMaintInt, self.txtMaintAlert, self.txtCreateDate, self.txtCreateUser, self.txtModifDate, self.txtModifUser]: w.clear()
         for w in [self.chkObs, self.chkWarr, self.chkCont]: w.setChecked(False)
-        for w in [self.cmbProc, self.cmbImp, self.cmbExp]: w.setCurrentIndex(0)
+        for w in [self.cmbType, self.cmbProc, self.cmbImp, self.cmbExp]: w.setCurrentIndex(0)
         self.subform_electrolysis_cells.load_cells(None)
         self.subform_tray_config.load(None)
 
     def _set_form_read_only(self, ro):
         for w in [self.txtIdentifier, self.txtName, self.txtMan, self.txtMod, self.txtSer, self.txtInv, self.txtLoc, self.txtStartOp, self.txtEndOp, self.txtPos, self.txtRem, self.txtWarrEnd, self.txtContEnd, self.txtMaintInt, self.txtMaintAlert]: w.setReadOnly(ro)
-        for w in [self.chkObs, self.chkWarr, self.chkCont, self.cmbProc, self.cmbImp, self.cmbExp]: w.setEnabled(not ro)
+        for w in [self.chkObs, self.chkWarr, self.chkCont, self.cmbType, self.cmbProc, self.cmbImp, self.cmbExp]: w.setEnabled(not ro)
         self.btnSave.setEnabled(not ro); self.btnCancel.setEnabled(not ro)
         has_id = self.current_equipment_id is not None
         self.btnEdit.setEnabled(ro and has_id); self.btnDelete.setEnabled(ro and has_id)
@@ -743,7 +771,8 @@ class EquipmentManagementWidget(QWidget):
                 def to_dt(s): return datetime.strptime(s, '%Y-%m-%d').date() if s else None
                 def to_int(s): return int(s) if s else None
                 p = {
-                    "cid": self.cmbCategory.currentData(), "ident": self.txtIdentifier.text(), "name": self.txtName.text(),
+                    "cid": self.cmbCategory.currentData(), "tid": self.cmbType.currentData(),
+                    "ident": self.txtIdentifier.text(), "name": self.txtName.text(),
                     "man": self.txtMan.text(), "mod": self.txtMod.text(), "ser": self.txtSer.text(), "inv": self.txtInv.text(),
                     "loc": self.txtLoc.text(), "start": to_dt(self.txtStartOp.text()), "end": to_dt(self.txtEndOp.text()),
                     "pos": to_int(self.txtPos.text()), "pid": self.cmbProc.currentData(), "imp": self.cmbImp.currentData(), "exp": self.cmbExp.currentData(),
@@ -755,11 +784,11 @@ class EquipmentManagementWidget(QWidget):
                     res = conn.execute(text("SELECT MAX(EquipmentID) FROM Equipment WHERE CategoryID=:cid"), {"cid": p["cid"]}).fetchone()
                     eid = (res[0] or (p["cid"]*1000)) + 1
                     p["eid"] = eid; self.current_equipment_id = eid
-                    sql = "INSERT INTO Equipment (EquipmentID, CategoryID, Identifier, EquipmentName, ManufacturerName, ModelName, SerialNumber, InventroyRefNo, Location, StartOperationDate, EndOperationDate, NumberOfPositions, DefaultProcedureID, AnalysisImportFormat, SampleExportFormat, HasWarranty, WarrantyEndsOn, HasContract, ContractEndsOn, MaintenanceIntervalMonths, MaintenanceAlertDays, IsObsolete, Remarks, CreateDateStamp, CreateUserStamp, ModifDateStamp, ModifUserStamp) VALUES (:eid, :cid, :ident, :name, :man, :mod, :ser, :inv, :loc, :start, :end, :pos, :pid, :imp, :exp, :warr, :wend, :cont, :cend, :mint, :malert, :obs, :rem, :now, :user, :now, :user)"
+                    sql = "INSERT INTO Equipment (EquipmentID, CategoryID, TypeID, Identifier, EquipmentName, ManufacturerName, ModelName, SerialNumber, InventroyRefNo, Location, StartOperationDate, EndOperationDate, NumberOfPositions, DefaultProcedureID, AnalysisImportFormat, SampleExportFormat, HasWarranty, WarrantyEndsOn, HasContract, ContractEndsOn, MaintenanceIntervalMonths, MaintenanceAlertDays, IsObsolete, Remarks, CreateDateStamp, CreateUserStamp, ModifDateStamp, ModifUserStamp) VALUES (:eid, :cid, :tid, :ident, :name, :man, :mod, :ser, :inv, :loc, :start, :end, :pos, :pid, :imp, :exp, :warr, :wend, :cont, :cend, :mint, :malert, :obs, :rem, :now, :user, :now, :user)"
                     conn.execute(text(sql), p)
                 else:
                     p["eid"] = self.current_equipment_id
-                    sql = "UPDATE Equipment SET Identifier=:ident, EquipmentName=:name, ManufacturerName=:man, ModelName=:mod, SerialNumber=:ser, InventroyRefNo=:inv, Location=:loc, StartOperationDate=:start, EndOperationDate=:end, NumberOfPositions=:pos, DefaultProcedureID=:pid, AnalysisImportFormat=:imp, SampleExportFormat=:exp, HasWarranty=:warr, WarrantyEndsOn=:wend, HasContract=:cont, ContractEndsOn=:cend, MaintenanceIntervalMonths=:mint, MaintenanceAlertDays=:malert, IsObsolete=:obs, Remarks=:rem, ModifDateStamp=:now, ModifUserStamp=:user WHERE EquipmentID=:eid"
+                    sql = "UPDATE Equipment SET TypeID=:tid, Identifier=:ident, EquipmentName=:name, ManufacturerName=:man, ModelName=:mod, SerialNumber=:ser, InventroyRefNo=:inv, Location=:loc, StartOperationDate=:start, EndOperationDate=:end, NumberOfPositions=:pos, DefaultProcedureID=:pid, AnalysisImportFormat=:imp, SampleExportFormat=:exp, HasWarranty=:warr, WarrantyEndsOn=:wend, HasContract=:cont, ContractEndsOn=:cend, MaintenanceIntervalMonths=:mint, MaintenanceAlertDays=:malert, IsObsolete=:obs, Remarks=:rem, ModifDateStamp=:now, ModifUserStamp=:user WHERE EquipmentID=:eid"
                     conn.execute(text(sql), p)
                 conn.commit()
             self.on_cat(); self.cmbSelectionList.setCurrentIndex(self.cmbSelectionList.findData(self.current_equipment_id))
@@ -787,6 +816,21 @@ class EquipmentManagementWidget(QWidget):
         if self.cmbCategory.currentData() == 2: # Electrolysis
             if EditCellsDialog: EditCellsDialog(self.current_equipment_id, self.txtName.text(), self).exec_()
             self.subform_electrolysis_cells.load_cells(self.current_equipment_id)
+
+
+def open_equipment_management_dialog(parent=None, start_create_type_id=None):
+    """Standalone, non-modal Equipment Management window -- for deep-linking
+    in from another screen (e.g. a run window's "+ Add Balance" shortcut)
+    without disturbing the main launcher's own singleton instance/navigation
+    state. Returns the QDialog so the caller can hold a reference if needed."""
+    dlg = QDialog(parent)
+    dlg.setWindowTitle("Equipment Management")
+    dlg.resize(1100, 720)
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(EquipmentManagementWidget(dlg, start_create_type_id=start_create_type_id))
+    dlg.show()
+    return dlg
 
 # --- FULLY IMPLEMENTED DIALOGS ---
 
